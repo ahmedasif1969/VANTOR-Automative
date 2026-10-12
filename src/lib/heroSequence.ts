@@ -24,6 +24,7 @@ export class HeroSequence {
   private jump = 0;
   private disposed = false;
   private loaded = false;
+  private activated = false;
   private width = 0;
   private height = 0;
   private readonly variant: "mobile" | "desktop";
@@ -54,22 +55,12 @@ export class HeroSequence {
     if (this.disposed || !this.frames.has(0))
       throw new Error("The opening video frame could not load");
     this.draw();
-    for (let index = 1; index < HERO_FRAME_COUNT; index++) {
-      void this.fetchFrame(index).catch(() => {});
-    }
-    // Warm several frames before enabling scrubbing, without loading all into RAM.
-    await Promise.allSettled(
-      Array.from({ length: this.decodeLimit }, async (_, offset) => {
-        const index = offset + 1;
-        await this.fetchFrame(index);
-        await this.decode(index);
-      }),
-    );
     if (this.disposed) return;
     this.loaded = true;
     this.draw();
     this.pumpDecode();
     this.ready();
+    if (this.activated) this.prefetchNearby();
   }
 
   render(progress: number) {
@@ -82,11 +73,19 @@ export class HeroSequence {
       this.direction = Math.sign(next - this.target);
       this.target = next;
     }
+    if (next > 0) this.activated = true;
     this.draw();
     this.trimCache();
     void this.fetchFrame(this.target).catch(() => {});
+    if (this.activated) this.prefetchNearby();
     this.pumpFetch();
     this.pumpDecode();
+  }
+
+  private prefetchNearby() {
+    for (const index of this.candidates()) {
+      void this.fetchFrame(index).catch(() => {});
+    }
   }
 
   private candidates() {
@@ -138,8 +137,8 @@ export class HeroSequence {
     if (this.disposed) return;
     while (this.fetching.size < this.fetchLimit && this.fetchQueue.size) {
       const index =
-        this.candidates().find((candidate) => this.fetchQueue.has(candidate)) ??
-        this.fetchQueue.keys().next().value;
+        !this.loaded && this.fetchQueue.has(0) ? 0 :
+        this.candidates().find((candidate) => this.fetchQueue.has(candidate));
       if (index === undefined) return;
       const job = this.fetchQueue.get(index)!;
       this.fetchQueue.delete(index);
@@ -190,7 +189,7 @@ export class HeroSequence {
     const task = (async () => {
       try {
         const bitmap = await createImageBitmap(blob);
-        if (this.disposed || !this.candidates().includes(index)) bitmap.close();
+        if (this.disposed || (!this.candidates().includes(index) && (index !== 0 || this.loaded))) bitmap.close();
         else this.frames.set(index, bitmap);
       } catch {
         if (!this.disposed) this.failed.add(index);

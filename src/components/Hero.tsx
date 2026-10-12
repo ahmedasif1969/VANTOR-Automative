@@ -2,7 +2,7 @@ import { useGSAP } from "@gsap/react";
 import { ArrowDown, ArrowUpRight } from "lucide-react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { HeroSequence } from "../lib/heroSequence";
 import { notifyMotionLayoutChange } from "../lib/motionLayout";
 
@@ -24,84 +24,89 @@ export function Hero() {
   const video = useRef<HTMLVideoElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const sequence = useRef<HeroSequence | null>(null);
+  const playhead = useRef({ progress: 0 });
   const [sequenceReady, setSequenceReady] = useState(false);
-  const [duration, setDuration] = useState(0);
+  const [useVideoFallback, setUseVideoFallback] = useState(false);
   const [videoReady, setVideoReady] = useState(false);
   const [videoFailed, setVideoFailed] = useState(false);
   const simplePresentation = useSyncExternalStore(
     subscribePresentation, getSimplePresentation, serverPresentation,
   );
+  const renderCurrentFrame = useCallback(() => {
+    const progress = playhead.current.progress;
+    if (sequence.current) {
+      sequence.current.render(progress);
+      return;
+    }
+    const element = video.current;
+    if (!element || element.seeking || !Number.isFinite(element.duration) || element.duration <= 0) return;
+    const target = Math.min(element.duration - 0.01, Math.max(0, progress * element.duration));
+    if (Math.abs(element.currentTime - target) >= 1 / 24) element.currentTime = target;
+  }, []);
 
   useEffect(() => {
     if (simplePresentation) return;
-    if (!canvas.current || typeof createImageBitmap !== "function") return;
+    if (!canvas.current || typeof createImageBitmap !== "function") {
+      setUseVideoFallback(true);
+      return;
+    }
+    let disposed = false;
     let renderer: HeroSequence;
     try {
-      renderer = new HeroSequence(canvas.current, () => setSequenceReady(true));
+      renderer = new HeroSequence(canvas.current, () => {
+        if (disposed) return;
+        setSequenceReady(true);
+        renderCurrentFrame();
+      });
     } catch {
+      setUseVideoFallback(true);
       return;
     }
     sequence.current = renderer;
     void renderer.load().catch(() => {
+      if (disposed) return;
       renderer.destroy();
       if (sequence.current === renderer) sequence.current = null;
+      setUseVideoFallback(true);
     });
     return () => {
+      disposed = true;
       renderer.destroy();
       if (sequence.current === renderer) sequence.current = null;
     };
-  }, [simplePresentation]);
+  }, [simplePresentation, renderCurrentFrame]);
 
   useGSAP(
     () => {
-      const element = video.current;
       if (simplePresentation) return;
-      if (!sequenceReady && (!element || !duration || videoFailed)) return;
 
       const match = gsap.matchMedia();
       match.add("(prefers-reduced-motion: no-preference)", () => {
-        element?.pause();
         const intro = root.current?.querySelector<HTMLElement>(".hero-intro");
-        const playhead = { progress: 0 };
-        let lastTarget = 0;
+        playhead.current.progress = 0;
         const render = () => {
-          if (intro) intro.inert = playhead.progress > 0.38;
-          if (sequenceReady && sequence.current) {
-            sequence.current.render(playhead.progress);
-          } else if (element && !element.seeking) {
-            const target = Math.min(
-              duration - 0.01,
-              Math.max(0, playhead.progress * duration),
-            );
-            if (Math.abs(element.currentTime - target) >= 1 / 24) {
-              lastTarget = target;
-              element.currentTime = target;
-            }
-          }
+          if (intro) intro.inert = playhead.current.progress > 0.38;
+          renderCurrentFrame();
         };
-        // Continue toward the newest smoothed target after a fallback video seek completes.
-        const onSeeked = () => {
-          if (Math.abs(element!.currentTime - lastTarget) < 0.05) render();
-        };
-        element?.addEventListener("seeked", onSeeked);
 
         const timeline = gsap.timeline({
           onUpdate: render,
           scrollTrigger: {
             trigger: root.current,
             start: "top top",
-            end: () => (window.innerWidth < 768 ? "+=110%" : "+=160%"),
+            end: () => {
+              const track = root.current!;
+              const scene = track.querySelector<HTMLElement>(".hero")!;
+              return "+=" + Math.max(1, track.offsetHeight - scene.offsetHeight);
+            },
             scrub: 0.55,
-            pin: true,
-            // Establish the hero's scroll distance before measuring lower sections.
             refreshPriority: 1,
-            anticipatePin: 1,
             invalidateOnRefresh: true,
           },
         });
 
         timeline
-          .to(playhead, { progress: 1, duration: 1, ease: "none" }, 0)
+          .to(playhead.current, { progress: 1, duration: 1, ease: "none" }, 0)
           .to(
             ".hero-intro",
             {
@@ -127,15 +132,13 @@ export function Hero() {
           )
           .to(".hero-vignette", { opacity: 0.95, duration: 0.6 }, 0.2);
 
-        // The pin is installed after metadata/frame loading, not on the first render.
-        // Recreate lower-page contexts only after its spacer has settled.
+        // The CSS sticky track reserves scroll distance before JavaScript loads.
         const layoutFrame = requestAnimationFrame(() => {
           notifyMotionLayoutChange();
         });
 
         return () => {
           cancelAnimationFrame(layoutFrame);
-          element?.removeEventListener("seeked", onSeeked);
           if (intro) intro.inert = false;
           sequence.current?.render(0);
         };
@@ -144,7 +147,7 @@ export function Hero() {
     },
     {
       scope: root,
-      dependencies: [duration, videoFailed, sequenceReady],
+      dependencies: [simplePresentation],
       revertOnUpdate: true,
     },
   );
@@ -153,14 +156,15 @@ export function Hero() {
     <section
       id="top"
       ref={root}
-      className="hero relative h-svh min-h-[560px] overflow-hidden bg-ink md:min-h-[680px]"
+      className={`hero-track relative ${simplePresentation ? "hero-track-simple" : ""}`}
     >
+      <div className="hero sticky top-0 h-svh min-h-[560px] overflow-hidden bg-ink md:min-h-[680px]">
       <div
         className="absolute inset-0 bg-cover bg-center"
         style={{ backgroundImage: `url(${fallbackImage})` }}
         aria-hidden="true"
       />
-      {!videoFailed && !simplePresentation && (
+      {useVideoFallback && !videoFailed && !simplePresentation && (
         <video
           ref={video}
           className={`hero-video absolute inset-0 size-full object-cover transition-opacity duration-700 ${videoReady && !sequenceReady ? "opacity-100" : "opacity-0"}`}
@@ -168,11 +172,12 @@ export function Hero() {
           muted
           playsInline
           preload="metadata"
-          onLoadedMetadata={(event) => {
-            const length = event.currentTarget.duration;
-            if (Number.isFinite(length) && length > 0) setDuration(length);
+          onLoadedMetadata={renderCurrentFrame}
+          onLoadedData={() => {
+            setVideoReady(true);
+            renderCurrentFrame();
           }}
-          onLoadedData={() => setVideoReady(true)}
+          onSeeked={renderCurrentFrame}
           onError={() => setVideoFailed(true)}
           aria-label="VANTOR performance vehicle in motion"
         />
@@ -232,6 +237,7 @@ export function Hero() {
             Scroll to drive <ArrowDown size={15} />
           </div>
         </div>
+      </div>
       </div>
     </section>
   );

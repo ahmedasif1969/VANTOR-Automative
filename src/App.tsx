@@ -161,7 +161,7 @@ export default function App() {
   return (
     <main
       ref={root}
-      className="w-full max-w-full overflow-x-hidden bg-ink text-white"
+      className="w-full max-w-full overflow-x-clip bg-ink text-white"
     >
       <Navigation />
       <div className="page-scroll-progress" aria-hidden="true" />

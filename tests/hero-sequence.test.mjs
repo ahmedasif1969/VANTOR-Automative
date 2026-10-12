@@ -259,6 +259,10 @@ test("a missing exact frame draws its nearest decoded neighbor immediately, then
   try {
     await h.renderer.load();
     await h.settle();
+    h.renderer.render(0.08);
+    await h.settle();
+    h.renderer.render(0);
+    await h.settle();
     h.holdDecodes();
     const ready = h.bitmaps
       .filter((bitmap) => !bitmap.closed)
@@ -274,6 +278,7 @@ test("a missing exact frame draws its nearest decoded neighbor immediately, then
       nearest,
       "Must not freeze waiting for exact decode",
     );
+    await h.settle();
     assert.ok(h.pendingDecode.has(62));
     h.releaseDecode(62);
     await h.settle();
@@ -298,12 +303,14 @@ test("new targets get reserved decoder capacity and obsolete results cannot over
     await h.settle();
     h.holdDecodes();
     h.renderer.render(62 / (HERO_FRAME_COUNT - 1));
+    await h.settle();
     assert.equal(
       h.pendingDecode.size,
       3,
       "One desktop slot must remain available for a new target",
     );
     h.renderer.render(1);
+    await h.settle();
     assert.ok(
       h.pendingDecode.has(123),
       "Latest target must start without waiting for speculative decodes",
@@ -330,6 +337,8 @@ test("bounded network preloading reprioritizes the latest jump instead of an out
   try {
     await h.renderer.load();
     await h.settle();
+    h.renderer.render(0.05);
+    await h.settle();
     assert.equal(h.pendingFetch.size, 6);
     h.renderer.render(1);
     h.renderer.render(62 / (HERO_FRAME_COUNT - 1));
@@ -347,6 +356,24 @@ test("bounded network preloading reprioritizes the latest jump instead of an out
       "Each compressed frame is fetched only once",
     );
     assert.ok(h.peakFetch() <= 6);
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test("opening the page downloads only the first frame until scrolling begins", async () => {
+  const h = await controlledRenderer();
+  try {
+    await h.renderer.load();
+    await h.settle();
+    h.renderer.render(0);
+    h.renderer.render(0);
+    await h.settle();
+    assert.deepEqual(h.fetches, [0]);
+    h.renderer.render(0.5);
+    await h.settle();
+    assert.equal(h.draws.at(-1), 62);
+    assert.ok(h.fetches.length > 1 && h.fetches.length <= 33);
   } finally {
     await h.cleanup();
   }

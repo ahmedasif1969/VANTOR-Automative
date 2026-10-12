@@ -43,6 +43,31 @@ body {
   background: #080808;
 }
 
+.hero-intro {
+  transform: translate(0px, 0px);
+  clip-path: inset(0);
+}
+
+.hero-track {
+  height: calc(max(100svh, 560px) + 110svh);
+}
+
+@media (min-width: 768px) {
+  .hero-track {
+    height: calc(max(100svh, 680px) + 160svh);
+  }
+}
+
+.hero-track-simple {
+  height: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-track {
+    height: auto;
+  }
+}
+
 ::selection {
   color: #fff;
   background: #e1212c;

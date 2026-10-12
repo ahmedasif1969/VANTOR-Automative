@@ -133,7 +133,7 @@ test("initial content is usable before animation code, and navigation anchors re
 });
 
 test("hero does not autoplay and the contact form does not promise a server submission", () => {
-  assert.ok(html.includes("/videos/vantor-hero.mp4"));
+  assert.ok(!html.includes("/videos/vantor-hero.mp4"), "Fallback video must not download with the initial HTML");
   assert.ok(!html.includes("autoPlay"));
   assert.ok(!html.includes("autoplay"));
   assert.ok(

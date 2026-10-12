@@ -23,13 +23,40 @@ try {
       }
     });
     await page.goto("http://localhost:5174", { waitUntil: "networkidle" });
+    await page.waitForFunction(() => getComputedStyle(document.querySelector("canvas")).opacity === "1");
     await page.screenshot({ path: `.tools/hero-${viewport.width}.png` });
     const metrics = await page.evaluate(() => ({
       paints: performance.getEntriesByType("paint").map(entry => ({ name: entry.name, time: entry.startTime })),
       ...window.performanceEntries,
       remoteFonts: performance.getEntriesByType("resource").filter(entry => /fonts\.google/.test(entry.name)).length,
       headingVisible: getComputedStyle(document.querySelector(".hero-intro")).opacity,
+      initialFrames: performance.getEntriesByType("resource").filter(entry => entry.name.includes("/hero-frames/")).length,
+      initialVideo: performance.getEntriesByType("resource").some(entry => entry.name.includes("vantor-hero.mp4")),
     }));
+    if (metrics.initialFrames > 2 || metrics.initialVideo) throw new Error("Hero media still downloads eagerly");
+    const canvasHash = () => {
+      const canvas = document.querySelector("canvas");
+      const data = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;
+      window.heroOpeningPixels ??= data.slice();
+      let hash = 0;
+      for (let index = 0; index < data.length; index += 128) hash = (hash * 31 + data[index]) >>> 0;
+      return hash;
+    };
+    const openingFrame = await page.evaluate(canvasHash);
+    await page.evaluate(() => window.scrollTo(0, innerHeight * 0.65));
+    await page.waitForTimeout(1500);
+    if (await page.evaluate(canvasHash) === openingFrame) throw new Error("Hero canvas does not scrub forward");
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForFunction(() => {
+      const canvas = document.querySelector("canvas");
+      const data = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;
+      const opening = window.heroOpeningPixels;
+      if (data.length !== opening.length) return false;
+      let difference = 0;
+      for (let index = 0; index < data.length; index++) difference += Math.abs(data[index] - opening[index]);
+      // GPU and CPU resampling can differ by a fraction of one color level.
+      return difference / data.length < 1;
+    }, undefined, { timeout: 5000 });
     await page.locator("#collection").evaluate(element => window.scrollTo(0, element.getBoundingClientRect().top + window.scrollY - 100));
     await page.waitForTimeout(1000);
     await page.screenshot({ path: `.tools/collection-${viewport.width}.png` });
@@ -66,6 +93,15 @@ try {
   if (!source.endsWith("gt3-800.webp")) throw new Error("High-density mobile did not select the expected responsive image");
   console.log("Pre-render without JavaScript, reduced-motion hydration, and 2x mobile responsive images passed.");
   await reduced.close();
+  const fallback = await browser.newPage();
+  await fallback.addInitScript(() => { window.createImageBitmap = undefined; });
+  await fallback.goto("http://localhost:5174", { waitUntil: "domcontentloaded" });
+  await fallback.locator("video").waitFor();
+  await fallback.waitForFunction(() => Number.isFinite(document.querySelector("video").duration));
+  await fallback.evaluate(() => window.scrollTo(0, 600));
+  await fallback.waitForFunction(() => document.querySelector("video").currentTime > 0.5);
+  console.log("On-demand fallback video scrubbing passed.");
+  await fallback.close();
 } finally {
   await browser.close();
 }
