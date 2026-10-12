@@ -24,7 +24,10 @@ const subscribe = (listener: () => void) => {
 /** Refresh existing triggers once after a burst of pin/font/content changes. */
 export function notifyMotionLayoutChange() {
   clearTimeout(refreshTimer);
-  refreshTimer = setTimeout(() => ScrollTrigger.refresh(), 80);
+  refreshTimer = setTimeout(() => {
+    ScrollTrigger.sort();
+    ScrollTrigger.refresh();
+  }, 80);
 }
 
 export function useMotionLayoutVersion() {

@@ -37,6 +37,20 @@ try {
     await page.locator(".vehicle-card .card-window").first().click();
     await page.locator("dialog[open]").waitFor();
     await page.getByRole("button", { name: "Close vehicle details" }).click();
+    // Validate timing, not just that triggers exist: headings must still be moving on entry.
+    for (const heading of await page.locator("[data-motion-heading]").all()) {
+      await heading.evaluate(element => window.scrollTo(0, element.getBoundingClientRect().top + window.scrollY - innerHeight * 0.85));
+      await page.waitForTimeout(700);
+      const early = await heading.locator(".motion-heading-line").first().evaluate(element => element.style.transform);
+      await heading.evaluate(element => window.scrollTo(0, element.getBoundingClientRect().top + window.scrollY - innerHeight * 0.35));
+      await page.waitForTimeout(700);
+      const late = await heading.locator(".motion-heading-line").first().evaluate(element => element.style.transform);
+      if (early === late) throw new Error("A heading finished animating before it entered the viewport");
+      await heading.evaluate(element => window.scrollTo(0, element.getBoundingClientRect().top + window.scrollY - innerHeight * 0.85));
+      await page.waitForTimeout(700);
+      const reversed = await heading.locator(".motion-heading-line").first().evaluate(element => element.style.transform);
+      if (reversed === late) throw new Error("Heading reverse scrolling failed");
+    }
     console.log(JSON.stringify({ viewport, metrics, images, errors }));
     if (errors.length || images.some(image => image.visible && !image.loaded) || metrics.remoteFonts) throw new Error("Browser verification failed");
     await page.close();

@@ -93,6 +93,8 @@ export function Hero() {
             end: () => (window.innerWidth < 768 ? "+=110%" : "+=160%"),
             scrub: 0.55,
             pin: true,
+            // Establish the hero's scroll distance before measuring lower sections.
+            refreshPriority: 1,
             anticipatePin: 1,
             invalidateOnRefresh: true,
           },
