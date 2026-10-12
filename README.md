@@ -53,7 +53,7 @@ is approximately 5.17 seconds, not the four seconds in the brief.
 Smooth reversible rendering uses all 124 extracted frames on canvas. Responsive
 WebP sequences are at public/videos/hero-frames/desktop and /mobile. GSAP drives
 one playhead shared by frame progression and text. A direction-aware decoded
-cache holds at most 32 desktop / 20 mobile frames, biased ahead of the current
+cache holds at most 32 desktop / 12 mobile frames, biased ahead of the current
 scroll direction. The fetch queue reprioritizes the latest target, and decoder
 capacity is reserved for it rather than consumed by speculative network waits.
 The canvas immediately uses the nearest ready image if the exact frame is still
@@ -64,7 +64,14 @@ sequence initialization is unavailable. There is no autoplay or artificial loop.
 
 The opening extracted frame appears immediately. Reduced-motion and detected
 data-saving / 2G connections use that static presentation without sequence/MP4
-downloads. Normal mobile visitors use the smaller mobile sequence and shorter pin.
+downloads. Normal mobile visitors use the mobile sequence and shorter pin.
+
+Mobile frames were re-exported directly from the original 2560 × 1440 upload at
+1920 × 1080 using Lanczos scaling and WebP quality 92 (previously 960 × 540).
+Mobile canvas density is capped at 2×, still bounded by source resolution;
+desktop remains 1600 × 900 with a 1.5× density cap. The smaller 12-frame mobile
+decoded cache limits the memory cost of the sharper assets. Frame URLs use a
+version query to avoid reusing the previous low-resolution browser cache.
 
 Replacing the video also requires regenerating both frame sequences and updating
 HERO_FRAME_COUNT in src/lib/heroSequence.ts.

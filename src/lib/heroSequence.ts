@@ -40,7 +40,8 @@ export class HeroSequence {
     if (!context) throw new Error("Canvas rendering is unavailable");
     this.context = context;
     this.variant = window.innerWidth < 768 ? "mobile" : "desktop";
-    this.cacheLimit = this.variant === "mobile" ? 20 : 32;
+    // Mobile frames now have four times the pixels; keep decoded memory bounded.
+    this.cacheLimit = this.variant === "mobile" ? 12 : 32;
     this.decodeLimit = this.variant === "mobile" ? 3 : 4;
     this.fetchLimit = this.variant === "mobile" ? 4 : 6;
     this.resizeObserver = new ResizeObserver(() => this.resize());
@@ -90,8 +91,8 @@ export class HeroSequence {
 
   private candidates() {
     const ahead = Math.min(
-      this.variant === "mobile" ? 13 : 22,
-      (this.variant === "mobile" ? 8 : 14) + this.jump * 2,
+      this.variant === "mobile" ? 8 : 22,
+      (this.variant === "mobile" ? 5 : 14) + this.jump * 2,
     );
     const behind = this.cacheLimit - ahead - 1;
     const start =
@@ -145,7 +146,11 @@ export class HeroSequence {
       this.fetching.add(index);
       const number = String(index + 1).padStart(3, "0");
       void fetch(
-        "/videos/hero-frames/" + this.variant + "/frame-" + number + ".webp",
+        "/videos/hero-frames/" +
+          this.variant +
+          "/frame-" +
+          number +
+          ".webp?v=3",
         {
           signal: this.controller.signal,
         },
@@ -234,11 +239,11 @@ export class HeroSequence {
   private resize() {
     if (this.disposed) return;
     const bounds = this.canvas.getBoundingClientRect();
-    const sourceWidth = this.variant === "mobile" ? 960 : 1600;
-    const sourceHeight = this.variant === "mobile" ? 540 : 900;
+    const sourceWidth = this.variant === "mobile" ? 1920 : 1600;
+    const sourceHeight = this.variant === "mobile" ? 1080 : 900;
     const ratio = Math.min(
       window.devicePixelRatio || 1,
-      1.5,
+      this.variant === "mobile" ? 2 : 1.5,
       sourceWidth / bounds.width,
       sourceHeight / bounds.height,
     );

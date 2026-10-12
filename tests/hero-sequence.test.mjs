@@ -31,6 +31,11 @@ test("both asset sequences contain every frame from the source clip", async () =
       assert.equal(data.subarray(0, 4).toString(), "RIFF");
       assert.equal(data.subarray(8, 12).toString(), "WEBP");
       assert.ok(data.length > 1000);
+      if (variant === "mobile") {
+        assert.equal(data.subarray(12, 16).toString(), "VP8 ");
+        assert.equal(data.readUInt16LE(26) & 0x3fff, 1920);
+        assert.equal(data.readUInt16LE(28) & 0x3fff, 1080);
+      }
     }
   }
 });
@@ -182,8 +187,8 @@ async function controlledRenderer({ mobile = false, gateFetch = false } = {}) {
     activeDecode--;
     const bitmap = {
       index,
-      width: mobile ? 960 : 1600,
-      height: mobile ? 540 : 900,
+      width: mobile ? 1920 : 1600,
+      height: mobile ? 1080 : 900,
       closed: false,
       close() {
         this.closed = true;
@@ -364,9 +369,10 @@ test("mobile uses a smaller cache and reverse scrolling changes preload directio
       h.decodes[before] < 61,
       "Reverse look-ahead should decode frames behind the target first",
     );
-    assert.ok(h.bitmaps.filter((bitmap) => !bitmap.closed).length <= 20);
+    assert.ok(h.bitmaps.filter((bitmap) => !bitmap.closed).length <= 12);
     assert.ok(h.peakDecode() <= 3 && h.peakFetch() <= 4);
-    assert.ok(h.canvas.width <= 960 && h.canvas.height <= 540);
+    assert.equal(h.canvas.width, 527);
+    assert.equal(h.canvas.height, 1080);
     h.renderer.render(0);
     await h.settle();
     assert.equal(h.draws.at(-1), 0);

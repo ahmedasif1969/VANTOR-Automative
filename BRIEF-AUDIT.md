@@ -186,6 +186,20 @@ look-ahead, and resize stability. These are not real-device timing benchmarks;
 fast scrolling can still skip intermediate frames, and visual smoothness in the
 user's browser has not been directly verified.
 
+## Mobile hero quality correction
+
+The old 960 × 540 mobile sequence capped a 390 × 800 portrait canvas at about
+263 × 540 pixels, below even 1× display density. Re-exported all 124 mobile
+frames from the original 2560 × 1440 upload at 1920 × 1080, WebP quality 92,
+with Lanczos scaling. The same portrait canvas now renders at 527 × 1080.
+Mobile density may reach 2× on shorter layouts, but is still source-limited.
+Desktop assets, crop alignment, scrolling, and text timing remain unchanged.
+Reduced the mobile decoded cache from 20 to 12 frames to contain the increased
+memory cost; versioned frame URLs prevent stale low-resolution cache reuse.
+Tests check all mobile asset dimensions and portrait canvas resolution, as well
+as existing reverse-scrolling and bounded-concurrency behavior. Actual phone
+visual quality and frame timing still require real-device verification.
+
 ## Content and publication limits
 
 The six models were chosen to match the available local photographs rather
