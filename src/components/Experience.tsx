@@ -5,7 +5,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { ArrowUpRight, Gauge } from "lucide-react";
 import { AutomotiveImage } from "./AutomotiveImage";
 import { MotionHeading } from "./MotionHeading";
-import { useMotionLayoutVersion } from "../lib/motionLayout";
+import { notifyMotionLayoutChange, useMotionLayoutVersion } from "../lib/motionLayout";
 import {
   formatPrice,
   recommendVehicle,
@@ -39,6 +39,7 @@ export function Experience({
   const selected = recommendVehicle(preference);
   useGSAP(
     () => {
+      if (!motionLayoutVersion) return;
       const selectionChanged =
         previousPreference.current !== null &&
         previousPreference.current !== preference;
@@ -83,7 +84,7 @@ export function Experience({
             0.18,
           );
       });
-      const frame = requestAnimationFrame(() => ScrollTrigger.refresh());
+      const frame = requestAnimationFrame(notifyMotionLayoutChange);
       return () => {
         cancelAnimationFrame(frame);
         match.revert();

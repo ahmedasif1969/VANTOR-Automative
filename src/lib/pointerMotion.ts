@@ -5,6 +5,9 @@ export function installPointerMotion(root: HTMLElement) {
   let magnetic: HTMLElement | null = null;
   let bounds: DOMRect | null = null;
   let media: HTMLElement | null = null;
+  let mediaBounds: DOMRect | null = null;
+  let frame = 0;
+  let latestEvent: PointerEvent | null = null;
   const changed = new Set<HTMLElement>();
 
   const resetMagnet = () => {
@@ -25,15 +28,20 @@ export function installPointerMotion(root: HTMLElement) {
       media.style.setProperty("--pointer-y", "0px");
     }
     media = null;
+    mediaBounds = null;
   };
   const move = (event: PointerEvent) => {
     if (event.pointerType !== "mouse" || !(event.target instanceof Element))
       return;
     const button = event.target.closest<HTMLElement>(".button");
+    const next = event.target.closest<HTMLElement>(".pointer-media");
+    // Read new geometry before writing any transforms or CSS properties.
+    const buttonBounds = button !== magnetic ? button?.getBoundingClientRect() ?? null : bounds;
+    const nextBounds = next !== media ? next?.getBoundingClientRect() ?? null : mediaBounds;
     if (button !== magnetic) {
       resetMagnet();
       magnetic = button;
-      bounds = button?.getBoundingClientRect() ?? null;
+      bounds = buttonBounds;
       if (button) changed.add(button);
     }
     if (magnetic && bounds) {
@@ -45,14 +53,14 @@ export function installPointerMotion(root: HTMLElement) {
         overwrite: "auto",
       });
     }
-    const next = event.target.closest<HTMLElement>(".pointer-media");
     if (next !== media) {
       resetMedia();
       media = next;
+      mediaBounds = nextBounds;
     }
-    if (media) {
+    if (media && mediaBounds) {
       changed.add(media);
-      const rect = media.getBoundingClientRect();
+      const rect = mediaBounds;
       const x = (event.clientX - rect.left) / rect.width;
       const y = (event.clientY - rect.top) / rect.height;
       media.style.setProperty("--pointer-x", `${(x - 0.5) * -16}px`);
@@ -62,14 +70,29 @@ export function installPointerMotion(root: HTMLElement) {
     }
   };
   const leave = () => {
+    cancelAnimationFrame(frame);
+    frame = 0;
+    latestEvent = null;
     resetMagnet();
     resetMedia();
   };
-  root.addEventListener("pointermove", move, { passive: true });
+  const scheduleMove = (event: PointerEvent) => {
+    latestEvent = event;
+    if (!frame) frame = requestAnimationFrame(() => {
+      frame = 0;
+      if (latestEvent) move(latestEvent);
+    });
+  };
+  root.addEventListener("pointermove", scheduleMove, { passive: true });
   root.addEventListener("pointerleave", leave);
+  window.addEventListener("scroll", leave, { passive: true });
+  window.addEventListener("resize", leave);
   return () => {
-    root.removeEventListener("pointermove", move);
+    cancelAnimationFrame(frame);
+    root.removeEventListener("pointermove", scheduleMove);
     root.removeEventListener("pointerleave", leave);
+    window.removeEventListener("scroll", leave);
+    window.removeEventListener("resize", leave);
     for (const element of changed) {
       gsap.killTweensOf(element);
       if (element.matches(".button"))

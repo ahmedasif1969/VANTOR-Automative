@@ -154,6 +154,9 @@ test("a fresh Strict Mode mount installs real GSAP triggers and keeps them after
         ),
       );
     });
+    await React.act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 60));
+    });
     const triggers = ScrollTrigger.getAll();
     assert.ok(
       triggers.length > 30,
@@ -196,10 +199,10 @@ test("a fresh Strict Mode mount installs real GSAP triggers and keeps them after
     const rebuiltHeading = ScrollTrigger.getAll().find((trigger) =>
       trigger.trigger?.hasAttribute("data-motion-heading"),
     );
-    assert.notEqual(
+    assert.equal(
       rebuiltHeading,
       heading,
-      "Hero pin readiness must recreate section positions",
+      "Hero pin readiness must refresh positions without rebuilding triggers",
     );
     await React.act(async () => {
       resolveFonts();
@@ -207,10 +210,10 @@ test("a fresh Strict Mode mount installs real GSAP triggers and keeps them after
     const settledHeading = ScrollTrigger.getAll().find((trigger) =>
       trigger.trigger?.hasAttribute("data-motion-heading"),
     );
-    assert.notEqual(
+    assert.equal(
       settledHeading,
       rebuiltHeading,
-      "Font readiness must recreate section positions",
+      "Font readiness must preserve existing triggers",
     );
     const line = settledHeading.trigger.querySelector(".motion-heading-line");
     const scrollHeading = (fraction) => {

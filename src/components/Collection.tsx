@@ -6,7 +6,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { ArrowUpRight, SlidersHorizontal } from "lucide-react";
 import { AutomotiveImage } from "./AutomotiveImage";
 import { MotionHeading } from "./MotionHeading";
-import { useMotionLayoutVersion } from "../lib/motionLayout";
+import { notifyMotionLayoutChange, useMotionLayoutVersion } from "../lib/motionLayout";
 import {
   filterVehicles,
   formatPrice,
@@ -50,6 +50,7 @@ export function Collection({
 
   useGSAP(
     () => {
+      if (!motionLayoutVersion) return;
       const match = gsap.matchMedia();
       match.add("(prefers-reduced-motion: no-preference)", () => {
         const cards = gsap.utils.toArray<HTMLElement>(".vehicle-card");
@@ -115,7 +116,7 @@ export function Collection({
         });
       });
       previousLayout.current = null;
-      const frame = requestAnimationFrame(() => ScrollTrigger.refresh());
+      const frame = requestAnimationFrame(notifyMotionLayoutChange);
       return () => {
         cancelAnimationFrame(frame);
         match.revert();

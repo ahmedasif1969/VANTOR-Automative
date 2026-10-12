@@ -12,6 +12,7 @@ export function ScrollStatement() {
 
   useGSAP(
     () => {
+      if (!motionLayoutVersion) return;
       const match = gsap.matchMedia();
       match.add("(prefers-reduced-motion: no-preference)", () => {
         const words = gsap.utils.toArray<HTMLElement>(".scroll-highlight-word");

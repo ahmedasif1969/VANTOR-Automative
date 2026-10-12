@@ -2,13 +2,22 @@ import { useGSAP } from "@gsap/react";
 import { ArrowDown, ArrowUpRight } from "lucide-react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { HeroSequence } from "../lib/heroSequence";
 import { notifyMotionLayoutChange } from "../lib/motionLayout";
 
 gsap.registerPlugin(ScrollTrigger, useGSAP);
 
 const fallbackImage = "/videos/hero-frames/desktop/frame-001.webp";
+const subscribePresentation = () => () => {};
+const serverPresentation = () => false;
+const getSimplePresentation = () => {
+  const connection = (navigator as Navigator & {
+    connection?: { saveData?: boolean; effectiveType?: string };
+  }).connection;
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches ||
+    !!connection?.saveData || /(^|-)2g$/.test(connection?.effectiveType || "");
+};
 
 export function Hero() {
   const root = useRef<HTMLElement>(null);
@@ -19,19 +28,9 @@ export function Hero() {
   const [duration, setDuration] = useState(0);
   const [videoReady, setVideoReady] = useState(false);
   const [videoFailed, setVideoFailed] = useState(false);
-  const [simplePresentation] = useState(() => {
-    if (typeof window === "undefined") return false;
-    const connection = (
-      navigator as Navigator & {
-        connection?: { saveData?: boolean; effectiveType?: string };
-      }
-    ).connection;
-    return (
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches ||
-      !!connection?.saveData ||
-      /(^|-)2g$/.test(connection?.effectiveType || "")
-    );
-  });
+  const simplePresentation = useSyncExternalStore(
+    subscribePresentation, getSimplePresentation, serverPresentation,
+  );
 
   useEffect(() => {
     if (simplePresentation) return;
@@ -129,7 +128,6 @@ export function Hero() {
         // The pin is installed after metadata/frame loading, not on the first render.
         // Recreate lower-page contexts only after its spacer has settled.
         const layoutFrame = requestAnimationFrame(() => {
-          ScrollTrigger.refresh();
           notifyMotionLayoutChange();
         });
 

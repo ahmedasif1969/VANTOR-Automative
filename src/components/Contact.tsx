@@ -5,6 +5,7 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { MotionHeading } from "./MotionHeading";
 import { vehicleNames } from "../lib/vehicles";
+import { notifyMotionLayoutChange } from "../lib/motionLayout";
 import {
   prepareEnquiry,
   validateEnquiry,
@@ -49,7 +50,7 @@ export function Contact({
             ease: "power2.out",
           });
       });
-      const frame = requestAnimationFrame(() => ScrollTrigger.refresh());
+      const frame = requestAnimationFrame(notifyMotionLayoutChange);
       return () => {
         cancelAnimationFrame(frame);
         match.revert();

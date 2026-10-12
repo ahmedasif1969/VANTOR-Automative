@@ -82,6 +82,7 @@ export default function App() {
 
   useGSAP(
     () => {
+      if (!motionLayoutVersion) return;
       const match = gsap.matchMedia();
       match.add("(prefers-reduced-motion: no-preference)", () => {
         gsap.fromTo(
@@ -150,12 +151,7 @@ export default function App() {
         "(hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)",
         () => (root.current ? installPointerMotion(root.current) : undefined),
       );
-      let disposed = false;
-      document.fonts?.ready.then(() => {
-        if (!disposed) ScrollTrigger.refresh();
-      });
       return () => {
-        disposed = true;
         match.revert();
       };
     },

@@ -20,6 +20,7 @@ export function Featured({
   const motionLayoutVersion = useMotionLayoutVersion();
   useGSAP(
     () => {
+      if (!motionLayoutVersion) return;
       const match = gsap.matchMedia();
       match.add("(prefers-reduced-motion: no-preference)", () => {
         gsap.fromTo(
