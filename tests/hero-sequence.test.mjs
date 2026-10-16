@@ -361,24 +361,27 @@ test("bounded network preloading reprioritizes the latest jump instead of an out
   }
 });
 
-test("opening the page warms only a small buffer before scrolling begins", async () => {
-  const h = await controlledRenderer();
+for (const mobile of [false, true]) {
+test(`opening the page warms ${mobile ? 12 : 20} frames before scrolling begins`, async () => {
+  const h = await controlledRenderer({ mobile });
+  const openingFrameCount = mobile ? 12 : 20;
   try {
     await h.renderer.load();
     await h.settle();
     h.renderer.render(0);
     h.renderer.render(0);
     await h.settle();
-    assert.deepEqual(h.fetches, [0, 1, 2, 3, 4]);
+    assert.deepEqual(h.fetches, Array.from({ length: openingFrameCount }, (_, index) => index));
     assert.ok(h.bitmaps.some((bitmap) => bitmap.index === 1 && !bitmap.closed));
     h.renderer.render(0.5);
     await h.settle();
     assert.equal(h.draws.at(-1), 62);
-    assert.ok(h.fetches.length > 5 && h.fetches.length <= 37);
+    assert.ok(h.fetches.length > openingFrameCount && h.fetches.length <= openingFrameCount + (mobile ? 12 : 32));
   } finally {
     await h.cleanup();
   }
 });
+}
 
 test("mobile uses a smaller cache and reverse scrolling changes preload direction", async () => {
   const h = await controlledRenderer({ mobile: true });

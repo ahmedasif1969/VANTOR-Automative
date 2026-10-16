@@ -60,8 +60,9 @@ export class HeroSequence {
     this.draw();
     this.pumpDecode();
     this.ready();
-    // Warm a small opening buffer before the first scroll, without loading the clip.
-    for (let index = 1; index <= 4; index++) {
+    // Display the opening immediately, then warm frames before the first scroll.
+    const openingFrameCount = this.variant === "mobile" ? 12 : 20;
+    for (let index = 1; index < openingFrameCount; index++) {
       void this.fetchFrame(index).catch(() => {});
     }
     if (this.activated) this.prefetchNearby();
