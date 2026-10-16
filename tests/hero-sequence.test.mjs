@@ -361,7 +361,7 @@ test("bounded network preloading reprioritizes the latest jump instead of an out
   }
 });
 
-test("opening the page downloads only the first frame until scrolling begins", async () => {
+test("opening the page warms only a small buffer before scrolling begins", async () => {
   const h = await controlledRenderer();
   try {
     await h.renderer.load();
@@ -369,11 +369,12 @@ test("opening the page downloads only the first frame until scrolling begins", a
     h.renderer.render(0);
     h.renderer.render(0);
     await h.settle();
-    assert.deepEqual(h.fetches, [0]);
+    assert.deepEqual(h.fetches, [0, 1, 2, 3, 4]);
+    assert.ok(h.bitmaps.some((bitmap) => bitmap.index === 1 && !bitmap.closed));
     h.renderer.render(0.5);
     await h.settle();
     assert.equal(h.draws.at(-1), 62);
-    assert.ok(h.fetches.length > 1 && h.fetches.length <= 33);
+    assert.ok(h.fetches.length > 5 && h.fetches.length <= 37);
   } finally {
     await h.cleanup();
   }

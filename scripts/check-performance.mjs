@@ -33,7 +33,7 @@ try {
       initialFrames: performance.getEntriesByType("resource").filter(entry => entry.name.includes("/hero-frames/")).length,
       initialVideo: performance.getEntriesByType("resource").some(entry => entry.name.includes("vantor-hero.mp4")),
     }));
-    if (metrics.initialFrames > 2 || metrics.initialVideo) throw new Error("Hero media still downloads eagerly");
+    if (metrics.initialFrames > 6 || metrics.initialVideo) throw new Error("Hero media exceeds the opening buffer budget");
     const canvasHash = () => {
       const canvas = document.querySelector("canvas");
       const data = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;

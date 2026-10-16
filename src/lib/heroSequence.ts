@@ -60,6 +60,10 @@ export class HeroSequence {
     this.draw();
     this.pumpDecode();
     this.ready();
+    // Warm a small opening buffer before the first scroll, without loading the clip.
+    for (let index = 1; index <= 4; index++) {
+      void this.fetchFrame(index).catch(() => {});
+    }
     if (this.activated) this.prefetchNearby();
   }
 
@@ -152,6 +156,9 @@ export class HeroSequence {
           ".webp?v=3",
         {
           signal: this.controller.signal,
+          // Match the image preload's CORS mode so the opening response is reused.
+          mode: "no-cors",
+          priority: index === 0 ? "high" : "low",
         },
       )
         .then((response) => {

@@ -8,7 +8,7 @@ import { notifyMotionLayoutChange } from "../lib/motionLayout";
 
 gsap.registerPlugin(ScrollTrigger, useGSAP);
 
-const fallbackImage = "/videos/hero-frames/desktop/frame-001.webp";
+const fallbackImage = "/videos/hero-frames/desktop/frame-001.webp?v=3";
 const subscribePresentation = () => () => {};
 const serverPresentation = () => false;
 const getSimplePresentation = () => {
@@ -159,11 +159,17 @@ export function Hero() {
       className={`hero-track relative ${simplePresentation ? "hero-track-simple" : ""}`}
     >
       <div className="hero sticky top-0 h-svh min-h-[560px] overflow-hidden bg-ink md:min-h-[680px]">
-      <div
-        className="absolute inset-0 bg-cover bg-center"
-        style={{ backgroundImage: `url(${fallbackImage})` }}
-        aria-hidden="true"
-      />
+      <picture aria-hidden="true">
+        <source media="(max-width: 767px)" srcSet="/videos/hero-frames/mobile/frame-001.webp?v=3" />
+        <img
+          className="absolute inset-0 size-full object-cover object-[60%_52%] md:object-[50%_52%]"
+          src={fallbackImage}
+          alt=""
+          decoding="async"
+          width={1600}
+          height={900}
+        />
+      </picture>
       {useVideoFallback && !videoFailed && !simplePresentation && (
         <video
           ref={video}
