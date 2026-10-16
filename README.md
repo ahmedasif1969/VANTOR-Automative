@@ -56,8 +56,9 @@ one playhead shared by frame progression and text. A direction-aware decoded
 cache holds at most 32 desktop / 12 mobile frames, biased ahead of the current
 scroll direction. The fetch queue reprioritizes the latest target, and decoder
 capacity is reserved for it rather than consumed by speculative network waits.
-The canvas immediately uses the nearest ready image if the exact frame is still
-decoding, then replaces it when ready. Several opening frames warm before the
+The canvas uses the nearest ready image between the displayed frame and the
+target, avoiding overshoot and backward jumps from out-of-order decoding. The
+current target downloads at high priority. Several opening frames warm before the
 sequence activates. Canvas resolution is capped at the source pixel dimensions.
 Efficient MP4 seeking remains the fallback when bitmap decoding or
 sequence initialization is unavailable. There is no autoplay or artificial loop.

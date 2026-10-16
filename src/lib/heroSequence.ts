@@ -159,7 +159,7 @@ export class HeroSequence {
           signal: this.controller.signal,
           // Match the image preload's CORS mode so the opening response is reused.
           mode: "no-cors",
-          priority: index === 0 ? "high" : "low",
+          priority: index === this.target ? "high" : "low",
         },
       )
         .then((response) => {
@@ -267,9 +267,14 @@ export class HeroSequence {
     if (this.disposed || !this.width || !this.height) return;
     let index = this.target;
     if (!this.frames.has(index)) {
-      // Show the nearest decoded image immediately; exact frames replace it when ready.
+      // Advance toward the target without overshooting or backtracking when
+      // speculative frames finish decoding out of order.
       index =
-        [...this.frames.keys()].sort(
+        [...this.frames.keys()].filter((candidate) => {
+          const low = this.displayed < 0 ? 0 : Math.min(this.displayed, this.target);
+          const high = this.displayed < 0 ? this.target : Math.max(this.displayed, this.target);
+          return candidate >= low && candidate <= high;
+        }).sort(
           (a, b) =>
             Math.abs(a - this.target) - Math.abs(b - this.target) ||
             (b - a) * this.direction,

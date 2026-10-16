@@ -296,6 +296,34 @@ test("a missing exact frame draws its nearest decoded neighbor immediately, then
   }
 });
 
+test("out-of-order decoding cannot overshoot the target and jump backward", async () => {
+  const h = await controlledRenderer();
+  try {
+    await h.renderer.load();
+    await h.settle();
+    h.holdDecodes();
+    h.renderer.render(62 / (HERO_FRAME_COUNT - 1));
+    await h.settle();
+    assert.ok(h.pendingDecode.has(64));
+    h.releaseDecode(64);
+    await h.settle();
+    assert.ok(h.draws.at(-1) <= 62, "An early future frame must not overshoot the target");
+    h.releaseDecode(62);
+    await h.settle();
+    assert.equal(h.draws.at(-1), 62);
+    h.renderer.render(60 / (HERO_FRAME_COUNT - 1));
+    await h.settle();
+    for (const index of [59, 58]) h.releaseDecode(index);
+    await h.settle();
+    assert.ok(h.draws.at(-1) >= 60, "Reverse playback must not overshoot either");
+    h.releaseDecode(60);
+    await h.settle();
+    assert.equal(h.draws.at(-1), 60);
+  } finally {
+    await h.cleanup();
+  }
+});
+
 test("new targets get reserved decoder capacity and obsolete results cannot overwrite them", async () => {
   const h = await controlledRenderer();
   try {
