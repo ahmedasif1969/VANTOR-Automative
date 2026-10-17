@@ -52,13 +52,18 @@ is approximately 5.17 seconds, not the four seconds in the brief.
 
 Smooth reversible rendering uses all 124 extracted frames on canvas. Responsive
 WebP sequences are at public/videos/hero-frames/desktop and /mobile. GSAP drives
-one playhead shared by frame progression and text. A direction-aware decoded
+the scroll destination and text; canvas playback follows with bounded catch-up.
+A direction-aware decoded
 cache holds at most 32 desktop / 12 mobile frames, biased ahead of the current
 scroll direction. The fetch queue reprioritizes the latest target, and decoder
 capacity is reserved for it rather than consumed by speculative network waits.
-The canvas uses the nearest ready image between the displayed frame and the
-target, avoiding overshoot and backward jumps from out-of-order decoding. The
-current target downloads at high priority. Several opening frames warm before the
+The canvas catches up toward the latest scroll position in steps of one to four
+source frames per screen refresh. Its download/decode window follows that playback
+position, preserving intermediate frames for the backlog. Reversing scroll replaces
+the old destination immediately. Missing frames pause playback; arrival wakes it
+without a large jump. Only one canvas draw is scheduled per refresh, and the loop
+sleeps once caught up or waiting for data. The next playback frame downloads at
+high priority. Twenty desktop / twelve mobile opening frames warm before the
 sequence activates. Canvas resolution is capped at the source pixel dimensions.
 Efficient MP4 seeking remains the fallback when bitmap decoding or
 sequence initialization is unavailable. There is no autoplay or artificial loop.

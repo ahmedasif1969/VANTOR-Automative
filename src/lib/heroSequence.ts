@@ -1,7 +1,7 @@
 // Generated from the local 24 fps source video, including its final frame.
 export const HERO_FRAME_COUNT = 124;
 
-/** Direction-aware preloading, a reserved target decoder, and nearest-ready drawing. */
+/** Bounded backlog playback with direction-aware preloading and decoding. */
 export class HeroSequence {
   private readonly context: CanvasRenderingContext2D;
   private readonly controller = new AbortController();
@@ -19,6 +19,9 @@ export class HeroSequence {
   private readonly decoding = new Map<number, Promise<void>>();
   private readonly failed = new Set<number>();
   private target = 0;
+  private requested = 0;
+  private animationFrame = 0;
+  private needsRedraw = true;
   private displayed = -1;
   private direction = 1;
   private jump = 0;
@@ -70,21 +73,11 @@ export class HeroSequence {
 
   render(progress: number) {
     if (this.disposed || !Number.isFinite(progress)) return;
-    const next = Math.round(
+    this.requested = Math.round(
       Math.max(0, Math.min(1, progress)) * (HERO_FRAME_COUNT - 1),
     );
-    if (next !== this.target) {
-      this.jump = Math.abs(next - this.target);
-      this.direction = Math.sign(next - this.target);
-      this.target = next;
-    }
-    if (next > 0) this.activated = true;
+    if (this.requested > 0) this.activated = true;
     this.draw();
-    this.trimCache();
-    void this.fetchFrame(this.target).catch(() => {});
-    if (this.activated) this.prefetchNearby();
-    this.pumpFetch();
-    this.pumpDecode();
   }
 
   private prefetchNearby() {
@@ -259,11 +252,37 @@ export class HeroSequence {
     if (width === this.width && height === this.height) return;
     this.width = this.canvas.width = width;
     this.height = this.canvas.height = height;
-    this.displayed = -1;
+    this.needsRedraw = true;
     this.draw();
   }
 
   private draw() {
+    if (this.disposed || this.animationFrame) return;
+    this.animationFrame = requestAnimationFrame(() => {
+      this.animationFrame = 0;
+      if (this.disposed) return;
+      const previous = this.displayed;
+      const remaining = this.requested - Math.max(0, previous);
+      // Consume the backlog in small steps, never replay outdated scroll goals.
+      const step = Math.min(4, Math.max(1, Math.ceil(Math.abs(remaining) / 8)));
+      const next = previous < 0 ? 0 : previous + Math.sign(remaining) * Math.min(step, Math.abs(remaining));
+      if (next !== this.target) {
+        this.jump = Math.abs(next - this.target);
+        this.target = next;
+      }
+      if (remaining) this.direction = Math.sign(remaining);
+      void this.fetchFrame(this.target).catch(() => {});
+      if (this.activated) this.prefetchNearby();
+      this.pumpFetch();
+      this.pumpDecode();
+      this.drawFrame();
+      this.trimCache();
+      // Sleep when waiting for data; decoding or new scroll input wakes us.
+      if (this.displayed !== previous && this.displayed !== this.requested) this.draw();
+    });
+  }
+
+  private drawFrame() {
     if (this.disposed || !this.width || !this.height) return;
     let index = this.target;
     if (!this.frames.has(index)) {
@@ -281,7 +300,7 @@ export class HeroSequence {
         )[0] ?? -1;
     }
     const bitmap = this.frames.get(index);
-    if (!bitmap || this.displayed === index) return;
+    if (!bitmap || (this.displayed === index && !this.needsRedraw)) return;
     const scale = Math.max(
       this.width / bitmap.width,
       this.height / bitmap.height,
@@ -297,11 +316,14 @@ export class HeroSequence {
       height,
     );
     this.displayed = index;
+    this.needsRedraw = false;
   }
 
   destroy() {
     if (this.disposed) return;
     this.disposed = true;
+    cancelAnimationFrame(this.animationFrame);
+    this.animationFrame = 0;
     this.controller.abort();
     this.resizeObserver.disconnect();
     for (const job of this.fetchQueue.values())
