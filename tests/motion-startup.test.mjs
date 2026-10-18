@@ -175,31 +175,22 @@ test("a fresh Strict Mode mount installs real GSAP triggers and keeps them after
     const heroTrigger = ScrollTrigger.getAll().find((trigger) => trigger.trigger?.id === "top");
     assert.ok(heroTrigger, "Hero scrubbing must initialize before media loads");
     assert.ok(!heroTrigger.pin, "CSS sticky must reserve the hero layout without a late JavaScript pin");
-    await React.act(async () => {
-      const video = document.querySelector("video");
-      Object.defineProperty(video, "duration", {
-        configurable: true,
-        value: 5.17,
-      });
-      video.dispatchEvent(
-        new window.Event("loadedmetadata", { bubbles: true }),
-      );
-    });
+    assert.equal(document.querySelector("video"), null);
     await React.act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 60));
     });
     assert.ok(
       ScrollTrigger.getAll().some((trigger) => trigger.trigger?.id === "top"),
-      "Metadata must preserve hero scrubbing",
+      "Poster loading must preserve hero scrubbing",
     );
     assert.equal(ScrollTrigger.getAll().find((trigger) => trigger.trigger?.id === "top"), heroTrigger,
-      "Video readiness must not recreate hero scrubbing or repaint the opening layout");
+      "Poster readiness must not recreate hero scrubbing or repaint the opening layout");
     ScrollTrigger.refresh();
     assert.ok(
       ScrollTrigger.getAll().some((trigger) =>
         trigger.trigger?.hasAttribute("data-motion-heading"),
       ),
-      "Hero metadata must not remove lower-page motion",
+      "Hero readiness must not remove lower-page motion",
     );
     const rebuiltHeading = ScrollTrigger.getAll().find((trigger) =>
       trigger.trigger?.hasAttribute("data-motion-heading"),

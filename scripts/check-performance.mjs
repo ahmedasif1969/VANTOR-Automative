@@ -33,8 +33,7 @@ try {
       initialFrames: performance.getEntriesByType("resource").filter(entry => entry.name.includes("/hero-frames/")).length,
       initialVideo: performance.getEntriesByType("resource").some(entry => entry.name.includes("vantor-hero.mp4")),
     }));
-    const openingFrameBudget = viewport.width < 768 ? 12 : 20;
-    if (metrics.initialFrames > openingFrameBudget + 1 || metrics.initialVideo) throw new Error("Hero media exceeds the opening buffer budget");
+    if (metrics.initialFrames > 125 || metrics.initialVideo) throw new Error("Hero downloaded unexpected media");
     const canvasHash = () => {
       const canvas = document.querySelector("canvas");
       const data = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;
@@ -97,11 +96,9 @@ try {
   const fallback = await browser.newPage();
   await fallback.addInitScript(() => { window.createImageBitmap = undefined; });
   await fallback.goto("http://localhost:5174", { waitUntil: "domcontentloaded" });
-  await fallback.locator("video").waitFor();
-  await fallback.waitForFunction(() => Number.isFinite(document.querySelector("video").duration));
-  await fallback.evaluate(() => window.scrollTo(0, 600));
-  await fallback.waitForFunction(() => document.querySelector("video").currentTime > 0.5);
-  console.log("On-demand fallback video scrubbing passed.");
+  await fallback.locator(".hero picture img").waitFor({ state: "visible" });
+  if (await fallback.locator("video").count() || await fallback.locator("canvas").evaluate(element => getComputedStyle(element).opacity !== "0")) throw new Error("Still-poster fallback failed");
+  console.log("Still-poster fallback passed.");
   await fallback.close();
 } finally {
   await browser.close();

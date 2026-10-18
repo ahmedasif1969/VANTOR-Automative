@@ -50,34 +50,33 @@ It does not replace real-browser visual or interaction tests.
 The user-supplied MP4 is at public/videos/vantor-hero.mp4. Its actual clip duration
 is approximately 5.17 seconds, not the four seconds in the brief.
 
-Smooth reversible rendering uses all 124 extracted frames on canvas. Responsive
-WebP sequences are at public/videos/hero-frames/desktop and /mobile. GSAP drives
-the scroll destination and text; canvas playback follows with bounded catch-up.
-A direction-aware decoded
-cache holds at most 32 desktop / 12 mobile frames, biased ahead of the current
-scroll direction. The fetch queue reprioritizes the latest target, and decoder
-capacity is reserved for it rather than consumed by speculative network waits.
-The canvas catches up toward the latest scroll position in steps of one to four
-source frames per screen refresh. Its download/decode window follows that playback
-position, preserving intermediate frames for the backlog. Reversing scroll replaces
-the old destination immediately. Missing frames pause playback; arrival wakes it
-without a large jump. Only one canvas draw is scheduled per refresh, and the loop
-sleeps once caught up or waiting for data. The next playback frame downloads at
-high priority. Twenty desktop / twelve mobile opening frames warm before the
-sequence activates. Canvas resolution is capped at the source pixel dimensions.
-Efficient MP4 seeking remains the fallback when bitmap decoding or
-sequence initialization is unavailable. There is no autoplay or artificial loop.
+Scroll playback uses all 124 extracted WebP frames on canvas. The desktop and phone
+sets live at public/videos/hero-frames/desktop and /mobile. Once the poster is
+ready, frame zero is downloaded, decoded, and painted before the canvas appears.
+Only the selected device set downloads. Its complete compressed sequence then
+loads in the background with four desktop or three phone requests in parallel.
+Compressed frames stay in memory for reverse playback; decoded images are limited
+to a directional window of sixteen desktop or ten phone frames, with up to three
+desktop or two phone decodes at once. Hidden tabs pause new requests.
+
+Each screen refresh paints only the next consecutive source frame toward the
+current scroll destination. Missing frames hold the displayed image until ready.
+GSAP text follows the frame actually painted, including reverse playback. The
+phone scroll track reserves more distance for the complete sequence. The canvas
+starts at a 1.5× density cap, bounded by the exported frame dimensions. The
+original MP4 remains as a source asset but is never played or sought by the site.
+The poster remains visible when canvas or bitmap decoding is unavailable.
 
 The opening extracted frame appears immediately. Reduced-motion and detected
-data-saving / 2G connections use that static presentation without sequence/MP4
+data-saving / 2G connections use that static presentation without sequence
 downloads. Normal mobile visitors use the mobile sequence and shorter pin.
 
-Mobile frames were re-exported directly from the original 2560 × 1440 upload at
-1920 × 1080 using Lanczos scaling and WebP quality 92 (previously 960 × 540).
-Mobile canvas density is capped at 2×, still bounded by source resolution;
-desktop remains 1600 × 900 with a 1.5× density cap. The smaller 12-frame mobile
-decoded cache limits the memory cost of the sharper assets. Frame URLs use a
-version query to avoid reusing the previous low-resolution browser cache.
+Phone frames were re-exported from the original 2560 × 1440 upload by scaling
+to 1920 × 1080 and cropping the hidden sides to 840 × 1080. The crop preserves
+the source pixels visible on phones and small tablets. WebP quality stays at 92;
+the phone sequence shrank from 7.77 MB to about 5.17 MB. Both canvas variants
+cap density at 1.5×, bounded by their source dimensions; desktop stays at
+1600 × 900. The phone URLs use version 4 to bypass the older browser cache.
 
 Replacing the video also requires regenerating both frame sequences and updating
 HERO_FRAME_COUNT in src/lib/heroSequence.ts.

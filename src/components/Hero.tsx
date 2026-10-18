@@ -21,45 +21,45 @@ const getSimplePresentation = () => {
 
 export function Hero() {
   const root = useRef<HTMLElement>(null);
-  const video = useRef<HTMLVideoElement>(null);
+  const poster = useRef<HTMLImageElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const sequence = useRef<HeroSequence | null>(null);
-  const playhead = useRef({ progress: 0 });
+  const textTimeline = useRef<gsap.core.Timeline | null>(null);
   const [sequenceReady, setSequenceReady] = useState(false);
-  const [useVideoFallback, setUseVideoFallback] = useState(false);
-  const [videoReady, setVideoReady] = useState(false);
-  const [videoFailed, setVideoFailed] = useState(false);
+  const [posterReady, setPosterReady] = useState(false);
+  const [variant, setVariant] = useState<"desktop" | "mobile">("desktop");
   const simplePresentation = useSyncExternalStore(
     subscribePresentation, getSimplePresentation, serverPresentation,
   );
-  const renderCurrentFrame = useCallback(() => {
-    const progress = playhead.current.progress;
-    if (sequence.current) {
-      sequence.current.render(progress);
-      return;
-    }
-    const element = video.current;
-    if (!element || element.seeking || !Number.isFinite(element.duration) || element.duration <= 0) return;
-    const target = Math.min(element.duration - 0.01, Math.max(0, progress * element.duration));
-    if (Math.abs(element.currentTime - target) >= 1 / 24) element.currentTime = target;
+  const showFrame = useCallback((progress: number) => {
+    textTimeline.current?.progress(progress);
+    const intro = root.current?.querySelector<HTMLElement>(".hero-intro");
+    if (intro) intro.inert = progress > 0.38;
   }, []);
 
   useEffect(() => {
-    if (simplePresentation) return;
-    if (!canvas.current || typeof createImageBitmap !== "function") {
-      setUseVideoFallback(true);
-      return;
-    }
+    if (poster.current?.complete && poster.current.naturalWidth) setPosterReady(true);
+    const media = window.matchMedia("(max-width: 767px)");
+    const update = () => setVariant(media.matches ? "mobile" : "desktop");
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  useEffect(() => {
+    if (simplePresentation || !posterReady || !canvas.current || typeof createImageBitmap !== "function") return;
+    if (variant !== (window.innerWidth < 768 ? "mobile" : "desktop")) return;
+    setSequenceReady(false);
     let disposed = false;
     let renderer: HeroSequence;
     try {
       renderer = new HeroSequence(canvas.current, () => {
         if (disposed) return;
         setSequenceReady(true);
-        renderCurrentFrame();
+      }, showFrame, variant, () => {
+        if (!disposed) setSequenceReady(false);
       });
     } catch {
-      setUseVideoFallback(true);
       return;
     }
     sequence.current = renderer;
@@ -67,14 +67,14 @@ export function Hero() {
       if (disposed) return;
       renderer.destroy();
       if (sequence.current === renderer) sequence.current = null;
-      setUseVideoFallback(true);
+      setSequenceReady(false);
     });
     return () => {
       disposed = true;
       renderer.destroy();
       if (sequence.current === renderer) sequence.current = null;
     };
-  }, [simplePresentation, renderCurrentFrame]);
+  }, [simplePresentation, posterReady, variant, showFrame]);
 
   useGSAP(
     () => {
@@ -83,30 +83,11 @@ export function Hero() {
       const match = gsap.matchMedia();
       match.add("(prefers-reduced-motion: no-preference)", () => {
         const intro = root.current?.querySelector<HTMLElement>(".hero-intro");
-        playhead.current.progress = 0;
-        const render = () => {
-          if (intro) intro.inert = playhead.current.progress > 0.38;
-          renderCurrentFrame();
-        };
-
-        const timeline = gsap.timeline({
-          onUpdate: render,
-          scrollTrigger: {
-            trigger: root.current,
-            start: "top top",
-            end: () => {
-              const track = root.current!;
-              const scene = track.querySelector<HTMLElement>(".hero")!;
-              return "+=" + Math.max(1, track.offsetHeight - scene.offsetHeight);
-            },
-            scrub: 0.55,
-            refreshPriority: 1,
-            invalidateOnRefresh: true,
-          },
-        });
+        const timeline = gsap.timeline({ paused: true });
+        textTimeline.current = timeline;
 
         timeline
-          .to(playhead.current, { progress: 1, duration: 1, ease: "none" }, 0)
+          .to({}, { duration: 1 }, 0)
           .to(
             ".hero-intro",
             {
@@ -131,6 +112,21 @@ export function Hero() {
             0.77,
           )
           .to(".hero-vignette", { opacity: 0.95, duration: 0.6 }, 0.2);
+        timeline.progress(0);
+
+        const trigger = ScrollTrigger.create({
+          trigger: root.current,
+          start: "top top",
+          end: () => {
+            const track = root.current!;
+            const scene = track.querySelector<HTMLElement>(".hero")!;
+            return "+=" + Math.max(1, track.offsetHeight - scene.offsetHeight);
+          },
+          onUpdate: (self) => sequence.current?.render(self.progress),
+          refreshPriority: 1,
+          invalidateOnRefresh: true,
+        });
+        sequence.current?.render(trigger.progress);
 
         // The CSS sticky track reserves scroll distance before JavaScript loads.
         const layoutFrame = requestAnimationFrame(() => {
@@ -139,8 +135,9 @@ export function Hero() {
 
         return () => {
           cancelAnimationFrame(layoutFrame);
+          trigger.kill();
+          if (textTimeline.current === timeline) textTimeline.current = null;
           if (intro) intro.inert = false;
-          sequence.current?.render(0);
         };
       });
       return () => match.revert();
@@ -160,34 +157,18 @@ export function Hero() {
     >
       <div className="hero sticky top-0 h-svh min-h-[560px] overflow-hidden bg-ink md:min-h-[680px]">
       <picture aria-hidden="true">
-        <source media="(max-width: 767px)" srcSet="/videos/hero-frames/mobile/frame-001.webp?v=3" />
+        <source media="(max-width: 767px)" srcSet="/videos/hero-frames/mobile/frame-001.webp?v=4" />
         <img
+          ref={poster}
           className="absolute inset-0 size-full object-cover object-[60%_52%] md:object-[50%_52%]"
           src={fallbackImage}
           alt=""
           decoding="async"
+          onLoad={() => setPosterReady(true)}
           width={1600}
           height={900}
         />
       </picture>
-      {useVideoFallback && !videoFailed && !simplePresentation && (
-        <video
-          ref={video}
-          className={`hero-video absolute inset-0 size-full object-cover transition-opacity duration-700 ${videoReady && !sequenceReady ? "opacity-100" : "opacity-0"}`}
-          src="/videos/vantor-hero.mp4?v=2"
-          muted
-          playsInline
-          preload="metadata"
-          onLoadedMetadata={renderCurrentFrame}
-          onLoadedData={() => {
-            setVideoReady(true);
-            renderCurrentFrame();
-          }}
-          onSeeked={renderCurrentFrame}
-          onError={() => setVideoFailed(true)}
-          aria-label="VANTOR performance vehicle in motion"
-        />
-      )}
       <canvas
         ref={canvas}
         className={`absolute inset-0 size-full transition-opacity duration-500 ${sequenceReady ? "opacity-100" : "opacity-0"}`}
