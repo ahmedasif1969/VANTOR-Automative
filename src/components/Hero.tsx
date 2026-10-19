@@ -1,5 +1,5 @@
 import { useGSAP } from "@gsap/react";
-import { ArrowDown, ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -199,9 +199,6 @@ export function Hero() {
                 Discover VANTOR
               </a>
             </div>
-            <p className="mt-6 flex items-center gap-3 text-[10px] uppercase tracking-[.16em] text-white/50 md:hidden">
-              Scroll to drive <ArrowDown size={14} />
-            </p>
           </div>
 
           <div className="hero-shift pointer-events-none absolute bottom-0 left-0 max-w-2xl opacity-0">
@@ -220,9 +217,6 @@ export function Hero() {
             </p>
           </div>
 
-          <div className="absolute bottom-1 right-0 hidden items-center gap-3 text-xs uppercase tracking-[0.18em] text-white/60 md:flex">
-            Scroll to drive <ArrowDown size={15} />
-          </div>
         </div>
       </div>
       </div>
