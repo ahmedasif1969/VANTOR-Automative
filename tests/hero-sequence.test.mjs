@@ -13,7 +13,7 @@ const compiled = ts.transpileModule(source, {
     module: ts.ModuleKind.ES2022,
   },
 }).outputText;
-const { HeroSequence, HERO_FRAME_COUNT } = await import(
+const { HeroSequence, HERO_FRAME_COUNT, HERO_STARTUP_BUFFER_FRAMES } = await import(
   `data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`
 );
 
@@ -80,9 +80,17 @@ async function harness({ mobile = false } = {}) {
     getContext: () => ({ drawImage(bitmap) { assert.ok(!bitmap.closed); paints.push(bitmap.index); } }),
     getBoundingClientRect: () => ({ width: mobile ? 390 : 1200, height: mobile ? 800 : 700 }),
   };
-  let ready = 0;
-  const progress = [];
-  const renderer = new HeroSequence(canvas, () => ready++, value => progress.push(value), mobile ? "mobile" : "desktop");
+  let ready = 0, bufferReady = 0;
+  const progress = [], bufferProgress = [];
+  const renderer = new HeroSequence(
+    canvas,
+    () => ready++,
+    value => progress.push(value),
+    mobile ? "mobile" : "desktop",
+    () => {},
+    value => bufferProgress.push(value),
+    () => bufferReady++,
+  );
   const settle = async () => { for (let i = 0; i < 8; i++) await new Promise(resolve => setImmediate(resolve)); };
   const frame = async () => {
     const queued = [...callbacks.values()]; callbacks.clear();
@@ -90,8 +98,8 @@ async function harness({ mobile = false } = {}) {
     await settle();
   };
   return {
-    renderer, downloads, paints, progress, callbacks, bitmaps, frame, settle,
-    get ready() { return ready; }, get peakFetch() { return peakFetch; }, get peakDecode() { return peakDecode; },
+    renderer, downloads, paints, progress, bufferProgress, callbacks, bitmaps, frame, settle,
+    get ready() { return ready; }, get bufferReady() { return bufferReady; }, get peakFetch() { return peakFetch; }, get peakDecode() { return peakDecode; },
     async setHidden(value) { hidden = value; listeners.get("visibilitychange")?.(); await settle(); },
     async finish() {
       renderer.destroy(); await settle();
@@ -111,6 +119,10 @@ for (const mobile of [false, true]) {
       await h.renderer.load();
       assert.equal(h.ready, 1);
       assert.equal(h.paints[0], 0, "First canvas frame is painted before it is revealed");
+      assert.equal(h.bufferProgress[0], 1 / HERO_STARTUP_BUFFER_FRAMES);
+      await h.settle();
+      assert.equal(h.bufferProgress.at(-1), 1, "Progress reaches 100% only after all opening buffer frames decode");
+      assert.equal(h.bufferReady, 1);
       h.renderer.render(1);
       for (let i = 0; i < 150 && h.paints.at(-1) !== 123; i++) await h.frame();
       assert.deepEqual(h.paints.slice(0, 124), Array.from({length:124}, (_,i)=>i));
@@ -122,6 +134,10 @@ for (const mobile of [false, true]) {
       assert.ok(h.peakFetch <= (mobile ? 3 : 4));
       assert.ok(h.peakDecode <= (mobile ? 2 : 3));
       assert.equal(h.progress.at(-1), 0);
+      assert.equal(h.renderer.isComplete, false);
+      h.renderer.render(1);
+      for (let i = 0; i < 150 && !h.renderer.isComplete; i++) await h.frame();
+      assert.equal(h.renderer.isComplete, true, "Completion reports only after the final source frame is painted");
       assert.ok(h.bitmaps.filter(bitmap=>!bitmap.closed).length <= (mobile ? 10 : 16));
     } finally { await h.finish(); }
   });

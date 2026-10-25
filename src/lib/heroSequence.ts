@@ -1,5 +1,6 @@
 // Every source frame is shown in order, including the final frame.
 export const HERO_FRAME_COUNT = 124;
+export const HERO_STARTUP_BUFFER_FRAMES = 8;
 
 type Variant = "desktop" | "mobile";
 
@@ -16,6 +17,7 @@ export class HeroSequence {
   private readonly fetching = new Set<number>();
   private readonly decoding = new Map<number, Promise<void>>();
   private readonly failed = new Set<number>();
+  private readonly decodedOnce = new Set<number>();
   private readonly resizeObserver: ResizeObserver;
   private readonly variant: Variant;
   private readonly fetchLimit: number;
@@ -30,6 +32,7 @@ export class HeroSequence {
   private disposed = false;
   private loaded = false;
   private needsRedraw = true;
+  private startupBufferReady = false;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -37,6 +40,8 @@ export class HeroSequence {
     private readonly onFrame: (progress: number) => void,
     variant: Variant = window.innerWidth < 768 ? "mobile" : "desktop",
     private readonly onFailure: () => void = () => {},
+    private readonly onBufferProgress: (progress: number) => void = () => {},
+    private readonly onBufferReady: () => void = () => {},
   ) {
     const context = canvas.getContext("2d", { alpha: false });
     if (!context) throw new Error("Canvas rendering is unavailable");
@@ -74,6 +79,10 @@ export class HeroSequence {
     this.pumpFetch();
     this.pumpDecode();
     this.schedule();
+  }
+
+  get isComplete() {
+    return this.displayed === HERO_FRAME_COUNT - 1;
   }
 
   private readonly onVisibilityChange = () => {
@@ -150,6 +159,10 @@ export class HeroSequence {
     const task = (async () => {
       try {
         const bitmap = await createImageBitmap(blob);
+        if (!this.disposed) {
+          this.decodedOnce.add(index);
+          this.reportStartupBuffer();
+        }
         if (this.disposed || !this.wantedFrames().has(index)) bitmap.close();
         else this.frames.set(index, bitmap);
       } catch {
@@ -163,6 +176,16 @@ export class HeroSequence {
     });
     this.decoding.set(index, task);
     return task;
+  }
+
+  private reportStartupBuffer() {
+    let count = 0;
+    while (count < HERO_STARTUP_BUFFER_FRAMES && this.decodedOnce.has(count)) count++;
+    this.onBufferProgress(count / HERO_STARTUP_BUFFER_FRAMES);
+    if (count === HERO_STARTUP_BUFFER_FRAMES && !this.startupBufferReady) {
+      this.startupBufferReady = true;
+      this.onBufferReady();
+    }
   }
 
   private wantedFrames() {

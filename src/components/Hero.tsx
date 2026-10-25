@@ -23,19 +23,33 @@ export function Hero() {
   const root = useRef<HTMLElement>(null);
   const poster = useRef<HTMLImageElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
+  const skipButton = useRef<HTMLButtonElement>(null);
   const sequence = useRef<HeroSequence | null>(null);
   const textTimeline = useRef<gsap.core.Timeline | null>(null);
   const [sequenceReady, setSequenceReady] = useState(false);
+  const [startupBufferProgress, setStartupBufferProgress] = useState(0);
+  const [startupDismissed, setStartupDismissed] = useState(false);
   const [posterReady, setPosterReady] = useState(false);
   const [variant, setVariant] = useState<"desktop" | "mobile">("desktop");
   const simplePresentation = useSyncExternalStore(
     subscribePresentation, getSimplePresentation, serverPresentation,
   );
+  const showStartupScreen = !simplePresentation && !startupDismissed;
   const showFrame = useCallback((progress: number) => {
     textTimeline.current?.progress(progress);
     const intro = root.current?.querySelector<HTMLElement>(".hero-intro");
     if (intro) intro.inert = progress > 0.38;
   }, []);
+
+  useEffect(() => {
+    if (!showStartupScreen) return;
+    const previousOverflow = document.documentElement.style.overflow;
+    document.documentElement.style.overflow = "hidden";
+    skipButton.current?.focus();
+    return () => {
+      document.documentElement.style.overflow = previousOverflow;
+    };
+  }, [showStartupScreen]);
 
   useEffect(() => {
     if (poster.current?.complete && poster.current.naturalWidth) setPosterReady(true);
@@ -47,7 +61,12 @@ export function Hero() {
   }, []);
 
   useEffect(() => {
-    if (simplePresentation || !posterReady || !canvas.current || typeof createImageBitmap !== "function") return;
+    if (simplePresentation) return;
+    if (!posterReady) return;
+    if (!canvas.current || typeof createImageBitmap !== "function") {
+      setStartupDismissed(true);
+      return;
+    }
     if (variant !== (window.innerWidth < 768 ? "mobile" : "desktop")) return;
     setSequenceReady(false);
     let disposed = false;
@@ -57,9 +76,21 @@ export function Hero() {
         if (disposed) return;
         setSequenceReady(true);
       }, showFrame, variant, () => {
-        if (!disposed) setSequenceReady(false);
+        if (!disposed) {
+          setSequenceReady(false);
+          sequence.current = null;
+          setStartupDismissed(true);
+        }
+      }, progress => {
+        if (!disposed) setStartupBufferProgress(progress);
+      }, () => {
+        if (!disposed) {
+          setStartupBufferProgress(1);
+          setStartupDismissed(true);
+        }
       });
     } catch {
+      setStartupDismissed(true);
       return;
     }
     sequence.current = renderer;
@@ -68,6 +99,7 @@ export function Hero() {
       renderer.destroy();
       if (sequence.current === renderer) sequence.current = null;
       setSequenceReady(false);
+      setStartupDismissed(true);
     });
     return () => {
       disposed = true;
@@ -122,7 +154,15 @@ export function Hero() {
             const scene = track.querySelector<HTMLElement>(".hero")!;
             return "+=" + Math.max(1, track.offsetHeight - scene.offsetHeight);
           },
-          onUpdate: (self) => sequence.current?.render(self.progress),
+          onUpdate: (self) => {
+            const activeSequence = sequence.current;
+            activeSequence?.render(self.progress);
+            // At the end of the scroll track, keep the sticky hero in place
+            // until its sequential renderer has painted the final frame.
+            if (self.progress >= 1 && activeSequence && !activeSequence.isComplete) {
+              window.scrollTo(0, self.end - 1);
+            }
+          },
           refreshPriority: 1,
           invalidateOnRefresh: true,
         });
@@ -220,6 +260,58 @@ export function Hero() {
         </div>
       </div>
       </div>
+      {showStartupScreen && (
+        <div
+          className="fixed inset-0 z-[100] flex min-h-svh flex-col justify-between bg-ink px-6 py-8 text-white sm:px-10 sm:py-10"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="hero-loading-title"
+          aria-describedby="hero-loading-description"
+          onKeyDown={event => {
+            if (event.key === "Escape") setStartupDismissed(true);
+            if (event.key === "Tab") {
+              event.preventDefault();
+              skipButton.current?.focus();
+            }
+          }}
+        >
+          <p className="eyebrow">VANTOR AUTOMOTIVE / EST. 2026</p>
+          <div className="mx-auto w-full max-w-xl">
+            <p className="eyebrow mb-5 text-white/50">Preparing the experience</p>
+            <h2 id="hero-loading-title" className="text-[clamp(2.5rem,8vw,5.5rem)] font-medium uppercase leading-[0.88] tracking-[-0.07em]">
+              Building the drive.
+            </h2>
+            <p id="hero-loading-description" className="mt-5 max-w-sm text-sm leading-relaxed text-white/60">
+              Preparing the opening hero frames for smooth scrolling.
+            </p>
+            <div
+              className="mt-10 h-px w-full overflow-hidden bg-white/20"
+              role="progressbar"
+              aria-label="Opening hero frame buffer"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(startupBufferProgress * 100)}
+            >
+              <div
+                className="h-full bg-white transition-[width] duration-200"
+                style={{ width: `${Math.round(startupBufferProgress * 100)}%` }}
+              />
+            </div>
+            <div className="mt-3 flex items-center justify-between text-[10px] uppercase tracking-[.16em] text-white/50">
+              <span>{Math.round(startupBufferProgress * 8)} / 8 frames ready</span>
+              <span>{Math.round(startupBufferProgress * 100)}%</span>
+            </div>
+          </div>
+          <button
+            ref={skipButton}
+            type="button"
+            className="self-end text-xs uppercase tracking-[.18em] text-white/70 transition-colors hover:text-white focus-visible:text-white"
+            onClick={() => setStartupDismissed(true)}
+          >
+            Skip intro <span aria-hidden="true">→</span>
+          </button>
+        </div>
+      )}
     </section>
   );
 }

@@ -142,3 +142,10 @@ test("hero does not autoplay and the contact form does not promise a server subm
   assert.ok(html.includes('aria-labelledby="vehicle-dialog-title"'));
   assert.ok(html.includes("placeholder destination"));
 });
+
+test("hero gates the initial experience on a decoded frame buffer and offers a skip", () => {
+  assert.ok(html.includes('id="hero-loading-title"'));
+  assert.ok(html.includes('role="progressbar"'));
+  assert.ok(html.includes("Skip intro"));
+  assert.ok(html.includes("0 / 8 frames ready"));
+});
