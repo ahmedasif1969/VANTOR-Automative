@@ -2,6 +2,7 @@
 export const HERO_FRAME_COUNT = 124;
 export const HERO_STARTUP_DOWNLOAD_FRAMES = 48;
 export const HERO_STARTUP_DECODE_FRAMES = 8;
+const FETCH_LOOKAHEAD = 12;
 
 export type HeroStartupProgress = { downloaded: number; decoded: number };
 
@@ -52,7 +53,7 @@ export class HeroSequence {
     if (!context) throw new Error("Canvas rendering is unavailable");
     this.context = context;
     this.variant = variant;
-    this.fetchLimit = variant === "mobile" ? 3 : 4;
+    this.fetchLimit = variant === "mobile" ? 4 : 6;
     this.decodeLimit = variant === "mobile" || ((window.navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 4) <= 2 ? 2 : 3;
     this.cacheLimit = variant === "mobile" ? 10 : 16;
     this.resizeObserver = new ResizeObserver(() => this.resize());
@@ -114,7 +115,7 @@ export class HeroSequence {
     const next = this.displayed < 0 ? 0 : this.displayed + this.direction;
     if (this.queue.has(next)) return next;
     // Prepare the next few frames before spending slots on distant frames.
-    for (let distance = 2; distance <= 8; distance++) {
+    for (let distance = 2; distance <= FETCH_LOOKAHEAD; distance++) {
       const index = this.displayed + this.direction * distance;
       if (this.queue.has(index)) return index;
     }
@@ -131,10 +132,11 @@ export class HeroSequence {
       this.queue.delete(index);
       this.fetching.add(index);
       const number = String(index + 1).padStart(3, "0");
+      const distance = (index - this.displayed) * this.direction;
       void fetch(`/videos/hero-frames/${this.variant}/frame-${number}.webp?v=${this.variant === "mobile" ? 4 : 3}`, {
         signal: this.controller.signal,
         mode: "no-cors",
-        priority: index === this.displayed + this.direction ? "high" : "low",
+        priority: distance >= 1 && distance <= FETCH_LOOKAHEAD ? "high" : "low",
       })
         .then(response => {
           if (!response.ok) throw new Error(`Frame ${number} failed`);
