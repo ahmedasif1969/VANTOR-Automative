@@ -295,17 +295,17 @@ export function Hero() {
         >
           <p className="eyebrow">VANTOR AUTOMOTIVE / EST. 2026</p>
           <div className="mx-auto w-full max-w-xl">
-            <p className="eyebrow mb-5 text-white/50">Preparing the experience</p>
+            <p className="eyebrow mb-5 text-white/50">The drive begins here</p>
             <h2 id="hero-loading-title" className="text-[clamp(2.5rem,8vw,5.5rem)] font-medium uppercase leading-[0.88] tracking-[-0.07em]">
-              Building the drive.
+              Preparing your experience.
             </h2>
             <p id="hero-loading-description" className="mt-5 max-w-sm text-sm leading-relaxed text-white/60">
-              Downloading the opening frames and preparing the next ones to display.
+              Your drive begins shortly.
             </p>
             <div
               className="mt-10 h-px w-full overflow-hidden bg-white/20"
               role="progressbar"
-              aria-label="Opening hero frame buffer"
+              aria-label="Experience loading progress"
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={startupPercent}
@@ -316,7 +316,7 @@ export function Hero() {
               />
             </div>
             <div className="mt-3 flex items-center justify-between text-[10px] uppercase tracking-[.16em] text-white/50">
-              <span>{startupBufferProgress.downloaded} / {HERO_STARTUP_DOWNLOAD_FRAMES} downloaded · {startupBufferProgress.decoded} / {HERO_STARTUP_DECODE_FRAMES} ready</span>
+              <span>Loading</span>
               <span>{startupPercent}%</span>
             </div>
           </div>

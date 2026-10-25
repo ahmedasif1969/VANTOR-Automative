@@ -143,10 +143,11 @@ test("hero does not autoplay and the contact form does not promise a server subm
   assert.ok(html.includes("placeholder destination"));
 });
 
-test("hero gates the initial experience on a frame buffer and offers a skip", () => {
+test("hero offers a clear loading screen and a skip", () => {
   assert.ok(html.includes('id="hero-loading-title"'));
   assert.ok(html.includes('role="progressbar"'));
+  assert.ok(html.includes("Preparing your experience."));
   assert.ok(html.includes("Skip intro"));
-  assert.ok(html.includes("0 / 32 downloaded"));
-  assert.ok(html.includes("0 / 8 ready"));
+  assert.ok(!html.includes("frames ready"));
+  assert.ok(!html.includes("downloaded"));
 });
