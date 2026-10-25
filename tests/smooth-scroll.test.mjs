@@ -93,9 +93,15 @@ test("smooth scrolling owns one ticker, survives Strict Mode cleanup, and switch
   };
   let cleanup;
   try {
+    exports.setIntroLoading(true);
     exports.useSmoothScroll();
     cleanup = effects[0]();
     assert.equal(tickers.size, 1);
+    assert.equal(instances[0].isStopped, true, "A visible loader stops Lenis even if it mounts first");
+    tickers.values().next().value(1);
+    assert.equal(instances[0].isStopped, true);
+    exports.setIntroLoading(false);
+    assert.equal(instances[0].isStopped, false);
     assert.equal(instances[0].events.get("scroll"), update);
     assert.equal(instances[0].options.anchors.offset, -90);
     assert.ok(
@@ -112,10 +118,16 @@ test("smooth scrolling owns one ticker, survives Strict Mode cleanup, and switch
     cleanup = effects[0]();
     assert.equal(tickers.size, 1);
     const lenis = instances[1];
+    exports.setIntroLoading(true);
+    assert.equal(lenis.isStopped, true);
+    tickers.values().next().value(1.5);
+    assert.equal(lenis.isStopped, true, "The ticker must not restart Lenis under the loader");
+    exports.setIntroLoading(false);
+    assert.equal(lenis.isStopped, false);
     modalOpen = true;
     tickers.values().next().value(2);
     assert.ok(lenis.isStopped);
-    assert.deepEqual(lenis.frames, [2000]);
+    assert.equal(lenis.frames.at(-1), 2000);
     modalOpen = false;
     tickers.values().next().value(3);
     assert.equal(lenis.isStopped, false);

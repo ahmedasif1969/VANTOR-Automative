@@ -10,7 +10,7 @@ import {
   type HeroStartupProgress,
 } from "../lib/heroSequence";
 import { notifyMotionLayoutChange } from "../lib/motionLayout";
-import { holdHeroScrollAt, releaseHeroScrollHold } from "../lib/useSmoothScroll";
+import { holdHeroScrollAt, releaseHeroScrollHold, setIntroLoading } from "../lib/useSmoothScroll";
 
 gsap.registerPlugin(ScrollTrigger, useGSAP);
 
@@ -56,9 +56,11 @@ export function Hero() {
     if (!showStartupScreen) return;
     const previousOverflow = document.documentElement.style.overflow;
     document.documentElement.style.overflow = "hidden";
+    setIntroLoading(true);
     skipButton.current?.focus();
     return () => {
       document.documentElement.style.overflow = previousOverflow;
+      setIntroLoading(false);
     };
   }, [showStartupScreen]);
 
@@ -283,6 +285,7 @@ export function Hero() {
           className="fixed inset-0 z-[100] flex min-h-svh flex-col justify-between bg-ink px-6 py-8 text-white sm:px-10 sm:py-10"
           role="dialog"
           aria-modal="true"
+          data-lenis-prevent=""
           aria-labelledby="hero-loading-title"
           aria-describedby="hero-loading-description"
           onKeyDown={event => {

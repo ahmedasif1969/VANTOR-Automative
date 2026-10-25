@@ -5,6 +5,13 @@ import Lenis from "lenis";
 
 let activeLenis: Lenis | null = null;
 let heroScrollHold = false;
+let introLoading = false;
+
+export function setIntroLoading(loading: boolean) {
+  introLoading = loading;
+  if (loading) activeLenis?.stop();
+  else if (!heroScrollHold && !document.querySelector(".vehicle-dialog[open]")) activeLenis?.start();
+}
 
 export function holdHeroScrollAt(position: number) {
   heroScrollHold = true;
@@ -21,7 +28,7 @@ export function holdHeroScrollAt(position: number) {
 export function releaseHeroScrollHold() {
   if (!heroScrollHold) return;
   heroScrollHold = false;
-  if (!document.querySelector(".vehicle-dialog[open]")) activeLenis?.start();
+  if (!introLoading && !document.querySelector(".vehicle-dialog[open]")) activeLenis?.start();
 }
 
 export function scrollToSection(id: string) {
@@ -55,8 +62,9 @@ export function useSmoothScroll() {
           node.matches("input, textarea, select, [data-lenis-prevent]"),
       });
       activeLenis = lenis;
+      if (introLoading) lenis.stop();
       const update = (time: number) => {
-        if (document.querySelector(".vehicle-dialog[open]")) lenis.stop();
+        if (introLoading || document.querySelector(".vehicle-dialog[open]")) lenis.stop();
         else if (!heroScrollHold && lenis.isStopped) lenis.start();
         lenis.raf(time * 1000);
       };

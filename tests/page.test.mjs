@@ -146,6 +146,7 @@ test("hero does not autoplay and the contact form does not promise a server subm
 test("hero offers a clear loading screen and a skip", () => {
   assert.ok(html.includes('id="hero-loading-title"'));
   assert.ok(html.includes('role="progressbar"'));
+  assert.ok(html.includes('data-lenis-prevent=""'));
   assert.ok(html.includes("Preparing your experience."));
   assert.ok(html.includes("Skip intro"));
   assert.ok(!html.includes("frames ready"));
