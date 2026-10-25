@@ -1,6 +1,6 @@
 // Every source frame is shown in order, including the final frame.
 export const HERO_FRAME_COUNT = 124;
-export const HERO_STARTUP_DOWNLOAD_FRAMES = 32;
+export const HERO_STARTUP_DOWNLOAD_FRAMES = 48;
 export const HERO_STARTUP_DECODE_FRAMES = 8;
 
 export type HeroStartupProgress = { downloaded: number; decoded: number };
