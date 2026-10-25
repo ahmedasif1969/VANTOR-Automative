@@ -4,6 +4,25 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import Lenis from "lenis";
 
 let activeLenis: Lenis | null = null;
+let heroScrollHold = false;
+
+export function holdHeroScrollAt(position: number) {
+  heroScrollHold = true;
+  if (activeLenis) {
+    // Reset Lenis's destination as well as the native scroll position so a
+    // large wheel gesture cannot resume past the hero after playback catches up.
+    activeLenis.scrollTo(position, { immediate: true, force: true });
+    activeLenis.stop();
+  } else {
+    window.scrollTo(0, position);
+  }
+}
+
+export function releaseHeroScrollHold() {
+  if (!heroScrollHold) return;
+  heroScrollHold = false;
+  if (!document.querySelector(".vehicle-dialog[open]")) activeLenis?.start();
+}
 
 export function scrollToSection(id: string) {
   const target = document.getElementById(id);
@@ -38,7 +57,7 @@ export function useSmoothScroll() {
       activeLenis = lenis;
       const update = (time: number) => {
         if (document.querySelector(".vehicle-dialog[open]")) lenis.stop();
-        else if (lenis.isStopped) lenis.start();
+        else if (!heroScrollHold && lenis.isStopped) lenis.start();
         lenis.raf(time * 1000);
       };
       lenis.on("scroll", ScrollTrigger.update);

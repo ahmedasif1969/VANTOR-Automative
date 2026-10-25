@@ -13,7 +13,7 @@ const compiled = ts.transpileModule(source, {
     module: ts.ModuleKind.ES2022,
   },
 }).outputText;
-const { HeroSequence, HERO_FRAME_COUNT, HERO_STARTUP_BUFFER_FRAMES } = await import(
+const { HeroSequence, HERO_FRAME_COUNT, HERO_STARTUP_DOWNLOAD_FRAMES, HERO_STARTUP_DECODE_FRAMES } = await import(
   `data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`
 );
 
@@ -40,11 +40,12 @@ test("both asset sequences contain every frame from the source clip", async () =
   }
 });
 
-async function harness({ mobile = false } = {}) {
+async function harness({ mobile = false, blockedIndex = -1, failedIndex = -1 } = {}) {
   const globals = ["window", "document", "fetch", "createImageBitmap", "ResizeObserver", "requestAnimationFrame", "cancelAnimationFrame"];
   const previous = new Map(globals.map(key => [key, globalThis[key]]));
   const callbacks = new Map(), downloads = [], paints = [], bitmaps = [];
   let nextId = 0, hidden = false, activeFetch = 0, peakFetch = 0, activeDecode = 0, peakDecode = 0;
+  let releaseBlockedDownload;
   const listeners = new Map();
   globalThis.window = { innerWidth: mobile ? 390 : 1440, devicePixelRatio: 2, navigator: { deviceMemory: 4 } };
   globalThis.document = {
@@ -64,9 +65,10 @@ async function harness({ mobile = false } = {}) {
     const index = Number(url.match(/frame-(\d+)/)[1]) - 1;
     downloads.push({index, url});
     peakFetch = Math.max(peakFetch, ++activeFetch);
-    await new Promise(resolve => setImmediate(resolve));
+    if (index === blockedIndex) await new Promise(resolve => { releaseBlockedDownload = resolve; });
+    else await new Promise(resolve => setImmediate(resolve));
     activeFetch--;
-    return { ok: true, blob: async () => ({ index }) };
+    return { ok: index !== failedIndex, blob: async () => ({ index }) };
   };
   globalThis.createImageBitmap = async ({index}) => {
     peakDecode = Math.max(peakDecode, ++activeDecode);
@@ -80,14 +82,14 @@ async function harness({ mobile = false } = {}) {
     getContext: () => ({ drawImage(bitmap) { assert.ok(!bitmap.closed); paints.push(bitmap.index); } }),
     getBoundingClientRect: () => ({ width: mobile ? 390 : 1200, height: mobile ? 800 : 700 }),
   };
-  let ready = 0, bufferReady = 0;
+  let ready = 0, bufferReady = 0, failure = 0;
   const progress = [], bufferProgress = [];
   const renderer = new HeroSequence(
     canvas,
     () => ready++,
     value => progress.push(value),
     mobile ? "mobile" : "desktop",
-    () => {},
+    () => failure++,
     value => bufferProgress.push(value),
     () => bufferReady++,
   );
@@ -99,7 +101,8 @@ async function harness({ mobile = false } = {}) {
   };
   return {
     renderer, downloads, paints, progress, bufferProgress, callbacks, bitmaps, frame, settle,
-    get ready() { return ready; }, get bufferReady() { return bufferReady; }, get peakFetch() { return peakFetch; }, get peakDecode() { return peakDecode; },
+    get ready() { return ready; }, get bufferReady() { return bufferReady; }, get failure() { return failure; }, get peakFetch() { return peakFetch; }, get peakDecode() { return peakDecode; },
+    releaseBlockedDownload() { releaseBlockedDownload?.(); },
     async setHidden(value) { hidden = value; listeners.get("visibilitychange")?.(); await settle(); },
     async finish() {
       renderer.destroy(); await settle();
@@ -119,9 +122,13 @@ for (const mobile of [false, true]) {
       await h.renderer.load();
       assert.equal(h.ready, 1);
       assert.equal(h.paints[0], 0, "First canvas frame is painted before it is revealed");
-      assert.equal(h.bufferProgress[0], 1 / HERO_STARTUP_BUFFER_FRAMES);
-      await h.settle();
-      assert.equal(h.bufferProgress.at(-1), 1, "Progress reaches 100% only after all opening buffer frames decode");
+      assert.deepEqual(h.bufferProgress[0], { downloaded: 1, decoded: 0 });
+      assert.equal(h.bufferReady, 0, "Opening frame alone cannot clear the startup gate");
+      for (let i = 0; i < 30 && !h.bufferReady; i++) await h.settle();
+      assert.deepEqual(h.bufferProgress.at(-1), {
+        downloaded: HERO_STARTUP_DOWNLOAD_FRAMES,
+        decoded: HERO_STARTUP_DECODE_FRAMES,
+      }, "Startup completes only after the download and decode targets are met");
       assert.equal(h.bufferReady, 1);
       h.renderer.render(1);
       for (let i = 0; i < 150 && h.paints.at(-1) !== 123; i++) await h.frame();
@@ -142,6 +149,34 @@ for (const mobile of [false, true]) {
     } finally { await h.finish(); }
   });
 }
+
+test("startup buffer waits for consecutive downloaded frames even when later requests finish", async () => {
+  const h = await harness({ blockedIndex: 20 });
+  try {
+    await h.renderer.load();
+    for (let i = 0; i < 30 && h.downloads.length < 40; i++) await h.settle();
+    assert.ok(h.downloads.length >= 40, "Background loading continues past a delayed frame");
+    assert.equal(h.bufferReady, 0);
+    assert.equal(h.bufferProgress.at(-1).downloaded, 20);
+    assert.equal(h.bufferProgress.at(-1).decoded, HERO_STARTUP_DECODE_FRAMES);
+    h.releaseBlockedDownload();
+    for (let i = 0; i < 10 && !h.bufferReady; i++) await h.settle();
+    assert.equal(h.bufferReady, 1);
+  } finally {
+    h.releaseBlockedDownload();
+    await h.finish();
+  }
+});
+
+test("a missing required frame fails the sequence instead of trapping the hero", async () => {
+  const h = await harness({ failedIndex: 1 });
+  try {
+    await h.renderer.load();
+    h.renderer.render(1);
+    for (let i = 0; i < 10 && !h.failure; i++) await h.frame();
+    assert.equal(h.failure, 1);
+  } finally { await h.finish(); }
+});
 
 test("background downloading continues without scrolling and pauses while the tab is hidden", async () => {
   const h = await harness();

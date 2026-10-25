@@ -53,8 +53,9 @@ is approximately 5.17 seconds, not the four seconds in the brief.
 Scroll playback uses all 124 extracted WebP frames on canvas. The desktop and phone
 sets live at public/videos/hero-frames/desktop and /mobile. Once the poster is
 ready, frame zero is downloaded, decoded, and painted before the canvas appears.
-The full-screen startup screen reports progress for the first eight consecutive
-decoded frames and offers a Skip intro button. Skipping reveals the page at once;
+The full-screen startup screen reports progress until the first 32 consecutive
+frames are downloaded and the first eight are decoded. It offers a Skip intro
+button. Skipping reveals the page at once;
 the selected frame sequence continues downloading in the background.
 Only the selected device set downloads. Its complete compressed sequence then
 loads in the background with four desktop or three phone requests in parallel.
@@ -66,7 +67,9 @@ Each screen refresh paints only the next consecutive source frame toward the
 current scroll destination. Missing frames hold the displayed image until ready.
 GSAP text follows the frame actually painted, including reverse playback. If a
 fast scroll reaches the end before playback catches up, scrolling holds at the
-hero until the final frame has painted. The phone scroll track reserves more
+hero until the final frame has painted. The pending smooth-scroll destination is
+cleared at that boundary so the page resumes there instead of jumping into the
+next section. The phone scroll track reserves more
 distance for the complete sequence. The canvas
 starts at a 1.5× density cap, bounded by the exported frame dimensions. The
 original MP4 remains as a source asset but is never played or sought by the site.

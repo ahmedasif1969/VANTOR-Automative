@@ -1,6 +1,9 @@
 // Every source frame is shown in order, including the final frame.
 export const HERO_FRAME_COUNT = 124;
-export const HERO_STARTUP_BUFFER_FRAMES = 8;
+export const HERO_STARTUP_DOWNLOAD_FRAMES = 32;
+export const HERO_STARTUP_DECODE_FRAMES = 8;
+
+export type HeroStartupProgress = { downloaded: number; decoded: number };
 
 type Variant = "desktop" | "mobile";
 
@@ -33,6 +36,8 @@ export class HeroSequence {
   private loaded = false;
   private needsRedraw = true;
   private startupBufferReady = false;
+  private reportedStartupDownloaded = -1;
+  private reportedStartupDecoded = -1;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -40,7 +45,7 @@ export class HeroSequence {
     private readonly onFrame: (progress: number) => void,
     variant: Variant = window.innerWidth < 768 ? "mobile" : "desktop",
     private readonly onFailure: () => void = () => {},
-    private readonly onBufferProgress: (progress: number) => void = () => {},
+    private readonly onBufferProgress: (progress: HeroStartupProgress) => void = () => {},
     private readonly onBufferReady: () => void = () => {},
   ) {
     const context = canvas.getContext("2d", { alpha: false });
@@ -136,7 +141,10 @@ export class HeroSequence {
           return response.blob();
         })
         .then(blob => {
-          if (!this.disposed) this.compressed.set(index, blob);
+          if (!this.disposed) {
+            this.compressed.set(index, blob);
+            this.reportStartupBuffer();
+          }
           job.resolve(blob);
         })
         .catch(error => {
@@ -147,6 +155,7 @@ export class HeroSequence {
           this.fetching.delete(index);
           this.pumpFetch();
           this.pumpDecode();
+          if (this.failed.has(index) && index === this.displayed + Math.sign(this.requested - this.displayed)) this.schedule();
         });
     }
   }
@@ -159,12 +168,12 @@ export class HeroSequence {
     const task = (async () => {
       try {
         const bitmap = await createImageBitmap(blob);
+        if (this.disposed || !this.wantedFrames().has(index)) bitmap.close();
+        else this.frames.set(index, bitmap);
         if (!this.disposed) {
           this.decodedOnce.add(index);
           this.reportStartupBuffer();
         }
-        if (this.disposed || !this.wantedFrames().has(index)) bitmap.close();
-        else this.frames.set(index, bitmap);
       } catch {
         if (!this.disposed) this.failed.add(index);
       }
@@ -179,10 +188,17 @@ export class HeroSequence {
   }
 
   private reportStartupBuffer() {
-    let count = 0;
-    while (count < HERO_STARTUP_BUFFER_FRAMES && this.decodedOnce.has(count)) count++;
-    this.onBufferProgress(count / HERO_STARTUP_BUFFER_FRAMES);
-    if (count === HERO_STARTUP_BUFFER_FRAMES && !this.startupBufferReady) {
+    if (this.startupBufferReady) return;
+    let downloaded = 0;
+    while (downloaded < HERO_STARTUP_DOWNLOAD_FRAMES && this.compressed.has(downloaded)) downloaded++;
+    let decoded = 0;
+    while (decoded < HERO_STARTUP_DECODE_FRAMES && this.decodedOnce.has(decoded)) decoded++;
+    if (downloaded !== this.reportedStartupDownloaded || decoded !== this.reportedStartupDecoded) {
+      this.reportedStartupDownloaded = downloaded;
+      this.reportedStartupDecoded = decoded;
+      this.onBufferProgress({ downloaded, decoded });
+    }
+    if (downloaded === HERO_STARTUP_DOWNLOAD_FRAMES && decoded === HERO_STARTUP_DECODE_FRAMES) {
       this.startupBufferReady = true;
       this.onBufferReady();
     }
@@ -249,6 +265,11 @@ export class HeroSequence {
       if (this.disposed || document.hidden) return;
       const next = this.displayed + Math.sign(this.requested - this.displayed);
       try {
+        if (this.displayed >= 0 && next !== this.displayed && this.failed.has(next)) {
+          this.destroy();
+          this.onFailure();
+          return;
+        }
         if (this.displayed >= 0 && next !== this.displayed && this.frames.has(next)) {
           this.paint(next);
           this.trimCache();

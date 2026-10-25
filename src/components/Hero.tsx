@@ -3,8 +3,14 @@ import { ArrowUpRight } from "lucide-react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { HeroSequence } from "../lib/heroSequence";
+import {
+  HeroSequence,
+  HERO_STARTUP_DECODE_FRAMES,
+  HERO_STARTUP_DOWNLOAD_FRAMES,
+  type HeroStartupProgress,
+} from "../lib/heroSequence";
 import { notifyMotionLayoutChange } from "../lib/motionLayout";
+import { holdHeroScrollAt, releaseHeroScrollHold } from "../lib/useSmoothScroll";
 
 gsap.registerPlugin(ScrollTrigger, useGSAP);
 
@@ -27,7 +33,7 @@ export function Hero() {
   const sequence = useRef<HeroSequence | null>(null);
   const textTimeline = useRef<gsap.core.Timeline | null>(null);
   const [sequenceReady, setSequenceReady] = useState(false);
-  const [startupBufferProgress, setStartupBufferProgress] = useState(0);
+  const [startupBufferProgress, setStartupBufferProgress] = useState<HeroStartupProgress>({ downloaded: 0, decoded: 0 });
   const [startupDismissed, setStartupDismissed] = useState(false);
   const [posterReady, setPosterReady] = useState(false);
   const [variant, setVariant] = useState<"desktop" | "mobile">("desktop");
@@ -35,10 +41,15 @@ export function Hero() {
     subscribePresentation, getSimplePresentation, serverPresentation,
   );
   const showStartupScreen = !simplePresentation && !startupDismissed;
+  const startupPercent = Math.round(Math.min(
+    startupBufferProgress.downloaded / HERO_STARTUP_DOWNLOAD_FRAMES,
+    startupBufferProgress.decoded / HERO_STARTUP_DECODE_FRAMES,
+  ) * 100);
   const showFrame = useCallback((progress: number) => {
     textTimeline.current?.progress(progress);
     const intro = root.current?.querySelector<HTMLElement>(".hero-intro");
     if (intro) intro.inert = progress > 0.38;
+    if (progress >= 1) releaseHeroScrollHold();
   }, []);
 
   useEffect(() => {
@@ -80,12 +91,16 @@ export function Hero() {
           setSequenceReady(false);
           sequence.current = null;
           setStartupDismissed(true);
+          releaseHeroScrollHold();
         }
       }, progress => {
         if (!disposed) setStartupBufferProgress(progress);
       }, () => {
         if (!disposed) {
-          setStartupBufferProgress(1);
+          setStartupBufferProgress({
+            downloaded: HERO_STARTUP_DOWNLOAD_FRAMES,
+            decoded: HERO_STARTUP_DECODE_FRAMES,
+          });
           setStartupDismissed(true);
         }
       });
@@ -100,11 +115,13 @@ export function Hero() {
       if (sequence.current === renderer) sequence.current = null;
       setSequenceReady(false);
       setStartupDismissed(true);
+      releaseHeroScrollHold();
     });
     return () => {
       disposed = true;
       renderer.destroy();
       if (sequence.current === renderer) sequence.current = null;
+      releaseHeroScrollHold();
     };
   }, [simplePresentation, posterReady, variant, showFrame]);
 
@@ -160,7 +177,7 @@ export function Hero() {
             // At the end of the scroll track, keep the sticky hero in place
             // until its sequential renderer has painted the final frame.
             if (self.progress >= 1 && activeSequence && !activeSequence.isComplete) {
-              window.scrollTo(0, self.end - 1);
+              holdHeroScrollAt(self.end - 1);
             }
           },
           refreshPriority: 1,
@@ -176,6 +193,7 @@ export function Hero() {
         return () => {
           cancelAnimationFrame(layoutFrame);
           trigger.kill();
+          releaseHeroScrollHold();
           if (textTimeline.current === timeline) textTimeline.current = null;
           if (intro) intro.inert = false;
         };
@@ -282,7 +300,7 @@ export function Hero() {
               Building the drive.
             </h2>
             <p id="hero-loading-description" className="mt-5 max-w-sm text-sm leading-relaxed text-white/60">
-              Preparing the opening hero frames for smooth scrolling.
+              Downloading the opening frames and preparing the next ones to display.
             </p>
             <div
               className="mt-10 h-px w-full overflow-hidden bg-white/20"
@@ -290,16 +308,16 @@ export function Hero() {
               aria-label="Opening hero frame buffer"
               aria-valuemin={0}
               aria-valuemax={100}
-              aria-valuenow={Math.round(startupBufferProgress * 100)}
+              aria-valuenow={startupPercent}
             >
               <div
                 className="h-full bg-white transition-[width] duration-200"
-                style={{ width: `${Math.round(startupBufferProgress * 100)}%` }}
+                style={{ width: `${startupPercent}%` }}
               />
             </div>
             <div className="mt-3 flex items-center justify-between text-[10px] uppercase tracking-[.16em] text-white/50">
-              <span>{Math.round(startupBufferProgress * 8)} / 8 frames ready</span>
-              <span>{Math.round(startupBufferProgress * 100)}%</span>
+              <span>{startupBufferProgress.downloaded} / {HERO_STARTUP_DOWNLOAD_FRAMES} downloaded · {startupBufferProgress.decoded} / {HERO_STARTUP_DECODE_FRAMES} ready</span>
+              <span>{startupPercent}%</span>
             </div>
           </div>
           <button

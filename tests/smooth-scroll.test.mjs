@@ -119,9 +119,19 @@ test("smooth scrolling owns one ticker, survives Strict Mode cleanup, and switch
     modalOpen = false;
     tickers.values().next().value(3);
     assert.equal(lenis.isStopped, false);
+    exports.holdHeroScrollAt(1599);
+    assert.deepEqual(lenis.scrolls.at(-1), {
+      element: 1599,
+      options: { immediate: true, force: true },
+    });
+    assert.equal(lenis.isStopped, true);
+    tickers.values().next().value(3.5);
+    assert.equal(lenis.isStopped, true, "The ticker must not restart Lenis during hero catch-up");
+    exports.releaseHeroScrollHold();
+    assert.equal(lenis.isStopped, false, "Playback completion releases scrolling at the hero boundary");
     exports.scrollToSection("contact");
-    assert.equal(lenis.scrolls[0].element, target);
-    assert.equal(lenis.scrolls[0].options.offset, -90);
+    assert.equal(lenis.scrolls.at(-1).element, target);
+    assert.equal(lenis.scrolls.at(-1).options.offset, -90);
 
     media.matches = true;
     changes.values().next().value();
