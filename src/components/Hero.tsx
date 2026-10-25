@@ -10,7 +10,7 @@ import {
   type HeroStartupProgress,
 } from "../lib/heroSequence";
 import { notifyMotionLayoutChange } from "../lib/motionLayout";
-import { holdHeroScrollAt, releaseHeroScrollHold, setIntroLoading } from "../lib/useSmoothScroll";
+import { holdHeroScrollAt, releaseHeroScrollHold, setHeroScrollLimit, setIntroLoading } from "../lib/useSmoothScroll";
 
 gsap.registerPlugin(ScrollTrigger, useGSAP);
 
@@ -185,6 +185,10 @@ export function Hero() {
           refreshPriority: 1,
           invalidateOnRefresh: true,
         });
+        setHeroScrollLimit(() => {
+          const activeSequence = sequence.current;
+          return activeSequence && !activeSequence.isComplete ? trigger.end - 1 : null;
+        });
         sequence.current?.render(trigger.progress);
 
         // The CSS sticky track reserves scroll distance before JavaScript loads.
@@ -195,6 +199,7 @@ export function Hero() {
         return () => {
           cancelAnimationFrame(layoutFrame);
           trigger.kill();
+          setHeroScrollLimit(null);
           releaseHeroScrollHold();
           if (textTimeline.current === timeline) textTimeline.current = null;
           if (intro) intro.inert = false;

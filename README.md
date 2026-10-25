@@ -58,7 +58,7 @@ frames are downloaded and the first eight are decoded. It offers a Skip intro
 button. Skipping reveals the page at once;
 the selected frame sequence continues downloading in the background.
 Only the selected device set downloads. Its complete compressed sequence then
-loads in the background with eight desktop or four phone requests in parallel.
+loads in the background with eight requests in parallel on desktop and phones.
 The next twelve frames in the playback direction get request priority over
 distant background frames.
 Compressed frames stay in memory for reverse playback; decoded images are limited

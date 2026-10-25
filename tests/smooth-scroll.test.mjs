@@ -124,6 +124,31 @@ test("smooth scrolling owns one ticker, survives Strict Mode cleanup, and switch
     assert.equal(lenis.isStopped, true, "The ticker must not restart Lenis under the loader");
     exports.setIntroLoading(false);
     assert.equal(lenis.isStopped, false);
+    assert.equal(lenis.options.syncTouch, true);
+    exports.setHeroScrollLimit(() => 1599);
+    lenis.scroll = 1200;
+    lenis.targetScroll = 1500;
+    const touch = { type: "touchmove", cancelable: true, prevented: false,
+      preventDefault() { this.prevented = true; } };
+    lenis.events.get("virtual-scroll")({ deltaY: 200, event: touch });
+    assert.equal(touch.prevented, true);
+    assert.equal(touch.lenisStopPropagation, true);
+    assert.equal(lenis.scrolls.at(-1).element, 1599);
+    assert.equal(lenis.scrolls.at(-1).options.lerp, 1);
+    lenis.targetScroll = 1599;
+    const scrollCount = lenis.scrolls.length;
+    lenis.events.get("virtual-scroll")({ deltaY: 200, event: touch });
+    assert.equal(lenis.scrolls.length, scrollCount, "Repeated swipes cannot restart the boundary animation");
+    lenis.scrolls.at(-1).options.onComplete();
+    assert.equal(lenis.isStopped, true);
+    exports.releaseHeroScrollHold();
+    lenis.targetScroll = 1500;
+    lenis.velocity = 20;
+    const touchEnd = { type: "touchend", cancelable: true, prevented: false,
+      preventDefault() { this.prevented = true; } };
+    lenis.events.get("virtual-scroll")({ deltaY: 10, event: touchEnd });
+    assert.equal(touchEnd.prevented, true, "Touch inertia must also respect the hero boundary");
+    exports.setHeroScrollLimit(null);
     modalOpen = true;
     tickers.values().next().value(2);
     assert.ok(lenis.isStopped);
