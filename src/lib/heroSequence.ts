@@ -53,7 +53,7 @@ export class HeroSequence {
     if (!context) throw new Error("Canvas rendering is unavailable");
     this.context = context;
     this.variant = variant;
-    this.fetchLimit = variant === "mobile" ? 4 : 6;
+    this.fetchLimit = variant === "mobile" ? 4 : 8;
     this.decodeLimit = variant === "mobile" || ((window.navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 4) <= 2 ? 2 : 3;
     this.cacheLimit = variant === "mobile" ? 10 : 16;
     this.resizeObserver = new ResizeObserver(() => this.resize());

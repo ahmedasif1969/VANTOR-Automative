@@ -138,7 +138,7 @@ for (const mobile of [false, true]) {
       assert.deepEqual(h.paints.slice(124), Array.from({length:123}, (_,i)=>122-i));
       assert.equal(h.downloads.length, 124);
       assert.ok(h.downloads.every(({url})=>url.includes(mobile ? "/mobile/" : "/desktop/")));
-      assert.equal(h.peakFetch, mobile ? 4 : 6);
+      assert.equal(h.peakFetch, mobile ? 4 : 8);
       assert.ok(h.downloads.filter(({ index }) => index > 0 && index <= 12)
         .every(({ priority }) => priority === "high"),
       "Upcoming frames should have high network priority");
